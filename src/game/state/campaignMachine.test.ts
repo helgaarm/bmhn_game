@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { firstCampaign } from '../content/firstCampaign'
+import { productionRuleRegistry } from '../compliance/productionRules'
 import {
   createCampaignReducer,
   createCampaignState,
@@ -103,5 +104,50 @@ describe('campaignMachine', () => {
       events.reduce(reducer, createCampaignState(firstCampaign))
 
     expect(replay()).toEqual(replay())
+  })
+
+  it('blocks a governed stage until every required rule has structured evidence', () => {
+    const afterDiscover = reducer(createCampaignState(firstCampaign), {
+      type: 'COMPLETE_STAGE',
+      stageId: 'discover',
+      evidence: ['Behovsbeskrivelse', 'Primær målgruppe'],
+      decision: discoverDecision,
+    })
+    const afterAssessment = reducer(afterDiscover, {
+      type: 'COMPLETE_STAGE',
+      stageId: 'understand-assess',
+      evidence: ['Aktørbilde', 'Forventet verdi', 'Åpen usikkerhet'],
+    })
+    const blocked = reducer(afterAssessment, {
+      type: 'COMPLETE_STAGE',
+      stageId: 'clarify-order',
+      evidence: ['Avklart omfang'],
+    })
+
+    expect(
+      blocked.stages.find((stage) => stage.id === 'clarify-order'),
+    ).toMatchObject({ status: 'blocked' })
+
+    const clarifyRules = productionRuleRegistry.rules.filter((rule) =>
+      rule.stageIds.includes('clarify-order'),
+    )
+    const completed = reducer(blocked, {
+      type: 'COMPLETE_STAGE',
+      stageId: 'clarify-order',
+      evidence: ['Avklart omfang'],
+      ruleEvidence: clarifyRules.map((rule) => ({
+        ruleId: rule.id,
+        outcome: 'satisfied' as const,
+        rationale: 'Syntetisk scenarioevidens er dokumentert for læringsporten.',
+        evidence: [`Kontrollert evidens for ${rule.id}`],
+      })),
+    })
+
+    expect(
+      completed.stages.find((stage) => stage.id === 'clarify-order'),
+    ).toMatchObject({ status: 'completed' })
+    expect(completed.stages.find((stage) => stage.id === 'connect')?.status).toBe(
+      'active',
+    )
   })
 })

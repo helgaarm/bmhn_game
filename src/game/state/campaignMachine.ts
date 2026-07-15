@@ -2,6 +2,7 @@ import type {
   CampaignDefinition,
   JourneyStageId,
 } from '../content/campaignSchema'
+import type { ProductionRuleId } from '../compliance/productionRuleSchema'
 
 export type CampaignStageStatus =
   | 'unavailable'
@@ -36,6 +37,13 @@ export interface CampaignState {
   decisions: DecisionRecord[]
 }
 
+export interface CampaignRuleEvidence {
+  ruleId: ProductionRuleId
+  outcome: 'satisfied' | 'not-applicable'
+  rationale: string
+  evidence: string[]
+}
+
 export type CampaignEvent =
   | {
       type: 'MARK_READY'
@@ -51,6 +59,7 @@ export type CampaignEvent =
       type: 'COMPLETE_STAGE'
       stageId: JourneyStageId
       evidence: string[]
+      ruleEvidence?: CampaignRuleEvidence[]
       decision?: DecisionRecord
     }
   | { type: 'RESET' }
@@ -115,11 +124,47 @@ export function createCampaignReducer(campaign: CampaignDefinition) {
         )
         const current = state.stages[currentIndex]
         if (!current || current.status === 'completed') return state
-        if (!['active', 'ready', 'failed-with-learning'].includes(current.status)) {
+        if (
+          !['active', 'blocked', 'ready', 'failed-with-learning'].includes(
+            current.status,
+          )
+        ) {
           return state
         }
 
-        const nextId = campaign.stages[currentIndex]?.nextStageId
+        const stageDefinition = campaign.stages[currentIndex]
+        const requiredRuleIds = stageDefinition.requiredRuleIds
+        const submittedRuleEvidence = event.ruleEvidence ?? []
+        const submittedRuleIds = new Set(
+          submittedRuleEvidence.map((item) => item.ruleId),
+        )
+        const ruleEvidenceIsValid = submittedRuleEvidence.every(
+          (item) =>
+            item.rationale.trim().length >= 12 &&
+            item.evidence.length > 0 &&
+            item.evidence.every((evidence) => evidence.trim().length >= 3),
+        )
+        const hasEveryRequiredRule = requiredRuleIds.every((ruleId) =>
+          submittedRuleIds.has(ruleId as ProductionRuleId),
+        )
+        const hasOnlyRequiredRules = submittedRuleEvidence.every((item) =>
+          requiredRuleIds.includes(item.ruleId),
+        )
+        if (
+          submittedRuleIds.size !== submittedRuleEvidence.length ||
+          !ruleEvidenceIsValid ||
+          !hasEveryRequiredRule ||
+          !hasOnlyRequiredRules
+        ) {
+          return updateStage(state, event.stageId, (stage) => ({
+            ...stage,
+            status: 'blocked',
+            blocker:
+              'Alle obligatoriske regler må ha strukturert evidens eller en begrunnet ikke-relevant-vurdering før porten kan åpnes.',
+          }))
+        }
+
+        const nextId = stageDefinition.nextStageId
         const decisionExists = event.decision
           ? state.decisions.some((decision) => decision.id === event.decision?.id)
           : false
@@ -131,7 +176,15 @@ export function createCampaignReducer(campaign: CampaignDefinition) {
               return {
                 ...stage,
                 status: 'completed',
-                evidence: [...event.evidence],
+                evidence: [
+                  ...event.evidence,
+                  ...submittedRuleEvidence.flatMap((item) => [
+                    `Regel ${item.ruleId}: ${item.outcome} – ${item.rationale}`,
+                    ...item.evidence.map(
+                      (evidence) => `Regelbevis ${item.ruleId}: ${evidence}`,
+                    ),
+                  ]),
+                ],
                 blocker: null,
               }
             }

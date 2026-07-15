@@ -1,57 +1,206 @@
 import { KeyboardControls, useKeyboardControls } from '@react-three/drei'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import {
   CuboidCollider,
   Physics,
   RigidBody,
   type RapierRigidBody,
+  useRapier,
 } from '@react-three/rapier'
-import { Suspense, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import type { Group } from 'three'
 import { MathUtils, Vector3 } from 'three'
 import {
+  getMovementAxes,
+  isTextEntryTarget,
   movementControlMap,
   type GameControl,
 } from '../input/controlMap'
+import {
+  applyCameraRotation,
+  DEFAULT_CAMERA_PITCH,
+  DEFAULT_CAMERA_YAW,
+  rotateMovementByCamera,
+} from '../input/cameraControls'
+import { advanceHorizontalVelocity } from '../physics/playerMotion'
+import {
+  getPortalTransition,
+  CONNECTION_BRIDGE,
+  MIRROR_HALL,
+  PROGRESSION_PORTAL,
+  RESPONSIBILITY_WAREHOUSE,
+  SHOWROOM_HALF_SIZE,
+  SHOWROOM_WALL_HALF_HEIGHT,
+  THIRD_PERSON_CAMERA_OFFSET_Z,
+  type WorldZone,
+} from '../world/worldProgression'
+
+export interface NavigationSample {
+  position: { x: number; y: number; z: number }
+  cameraDistance: number
+  cameraObstructed: boolean
+}
 
 interface GameCanvasProps {
   reducedMotion: boolean
-  zone: 'showroom' | 'mirror-hall'
+  cameraSensitivity: number
+  movementSpeed: number
+  zone: WorldZone
   onNpcProximityChange: (isNear: boolean) => void
+  onMirrorHallPresenceChange: (isInside: boolean) => void
   onFirstFrame?: () => void
   onFpsSample?: (fps: number) => void
+  onNavigationSample?: (sample: NavigationSample) => void
 }
 
 const NPC_POSITION = new Vector3(0, 1, -1.5)
 
+function getSafePlayerPosition(zone: WorldZone, insideMirrorHall: boolean) {
+  if (insideMirrorHall) return MIRROR_HALL.entryPosition
+  if (zone === 'mirror-hall') return MIRROR_HALL.showroomApproachPosition
+  if (zone === 'connection-bridge') return CONNECTION_BRIDGE.entryPosition
+  if (zone === 'responsibility-warehouse') {
+    return RESPONSIBILITY_WAREHOUSE.entryPosition
+  }
+  return { x: 0, y: 1, z: 5 }
+}
+
 function Player({
+  reducedMotion,
+  cameraSensitivity,
+  movementSpeed,
+  zone,
   onNpcProximityChange,
-}: Pick<GameCanvasProps, 'onNpcProximityChange'>) {
+  onMirrorHallPresenceChange,
+  onNavigationSample,
+}: Pick<
+  GameCanvasProps,
+  | 'reducedMotion'
+  | 'cameraSensitivity'
+  | 'movementSpeed'
+  | 'zone'
+  | 'onNpcProximityChange'
+  | 'onMirrorHallPresenceChange'
+  | 'onNavigationSample'
+>) {
   const body = useRef<RapierRigidBody>(null)
   const avatar = useRef<Group>(null)
   const proximity = useRef(false)
+  const insideMirrorHall = useRef(false)
+  const portalCooldownUntil = useRef(0)
+  const cameraZone = useRef(zone)
+  const cameraSnapRequested = useRef(false)
   const cameraPosition = useMemo(() => new Vector3(), [])
   const cameraTarget = useMemo(() => new Vector3(), [])
+  const cameraRayDirection = useMemo(() => new Vector3(), [])
+  const cameraYaw = useRef(DEFAULT_CAMERA_YAW)
+  const cameraPitch = useRef(DEFAULT_CAMERA_PITCH)
+  const draggingPointer = useRef<number | null>(null)
+  const lastPointerPosition = useRef({ x: 0, y: 0 })
+  const lastNavigationSampleAt = useRef(0)
   const [, getControls] = useKeyboardControls<GameControl>()
+  const { gl } = useThree()
+  const { rapier, world } = useRapier()
 
-  useFrame(({ camera }, delta) => {
+  useEffect(() => {
+    const canvas = gl.domElement
+    const startDrag = (event: PointerEvent) => {
+      if (event.button !== 0) return
+      draggingPointer.current = event.pointerId
+      lastPointerPosition.current = { x: event.clientX, y: event.clientY }
+      canvas.setPointerCapture(event.pointerId)
+      canvas.dataset.cameraDragging = 'true'
+    }
+    const drag = (event: PointerEvent) => {
+      if (draggingPointer.current !== event.pointerId) return
+      const next = applyCameraRotation(
+        cameraYaw.current,
+        cameraPitch.current,
+        event.clientX - lastPointerPosition.current.x,
+        event.clientY - lastPointerPosition.current.y,
+        cameraSensitivity * (reducedMotion ? 0.6 : 1),
+      )
+      cameraYaw.current = next.yaw
+      cameraPitch.current = next.pitch
+      lastPointerPosition.current = { x: event.clientX, y: event.clientY }
+    }
+    const stopDrag = (event: PointerEvent) => {
+      if (draggingPointer.current !== event.pointerId) return
+      draggingPointer.current = null
+      delete canvas.dataset.cameraDragging
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId)
+      }
+    }
+
+    canvas.addEventListener('pointerdown', startDrag)
+    canvas.addEventListener('pointermove', drag)
+    canvas.addEventListener('pointerup', stopDrag)
+    canvas.addEventListener('pointercancel', stopDrag)
+    return () => {
+      canvas.removeEventListener('pointerdown', startDrag)
+      canvas.removeEventListener('pointermove', drag)
+      canvas.removeEventListener('pointerup', stopDrag)
+      canvas.removeEventListener('pointercancel', stopDrag)
+      delete canvas.dataset.cameraDragging
+    }
+  }, [cameraSensitivity, gl, reducedMotion])
+
+  useEffect(() => {
+    insideMirrorHall.current = false
+    body.current?.setTranslation(getSafePlayerPosition(zone, false), true)
+    cameraSnapRequested.current = true
+    onMirrorHallPresenceChange(false)
+  }, [onMirrorHallPresenceChange, zone])
+
+  useFrame(({ camera, clock }, delta) => {
     const rigidBody = body.current
     if (!rigidBody) return
 
     const keys = getControls()
-    const directionX =
-      Number(Boolean(keys['move-right'])) - Number(Boolean(keys['move-left']))
-    const directionZ =
-      Number(Boolean(keys['move-backward'])) - Number(Boolean(keys['move-forward']))
-    const length = Math.hypot(directionX, directionZ) || 1
+    const localMovement = getMovementAxes(
+      keys,
+      document.activeElement,
+    )
+    const keyboardCameraEnabled = !isTextEntryTarget(document.activeElement)
+    const cameraMotionScale = reducedMotion ? 0.55 : 1
+    if (keyboardCameraEnabled) {
+      const yawDirection =
+        Number(Boolean(keys['camera-right'])) -
+        Number(Boolean(keys['camera-left']))
+      const pitchDirection =
+        Number(Boolean(keys['camera-up'])) -
+        Number(Boolean(keys['camera-down']))
+      cameraYaw.current +=
+        yawDirection * delta * 1.65 * cameraSensitivity * cameraMotionScale
+      cameraPitch.current = MathUtils.clamp(
+        cameraPitch.current +
+          pitchDirection * delta * 1.25 * cameraSensitivity * cameraMotionScale,
+        -0.9,
+        1.15,
+      )
+      if (keys['camera-reset']) {
+        cameraYaw.current = DEFAULT_CAMERA_YAW
+        cameraPitch.current = DEFAULT_CAMERA_PITCH
+      }
+    }
+    const { x: directionX, z: directionZ } = rotateMovementByCamera(
+      localMovement,
+      cameraYaw.current,
+    )
     const velocity = rigidBody.linvel()
-    const speed = 3.6
+    const horizontalVelocity = advanceHorizontalVelocity(
+      { x: velocity.x, z: velocity.z },
+      { x: directionX, z: directionZ },
+      delta,
+      movementSpeed,
+    )
 
     rigidBody.setLinvel(
       {
-        x: (directionX / length) * speed,
+        x: horizontalVelocity.x,
         y: velocity.y,
-        z: (directionZ / length) * speed,
+        z: horizontalVelocity.z,
       },
       true,
     )
@@ -66,8 +215,32 @@ function Player({
       )
     }
 
-    const position = rigidBody.translation()
+    let position = rigidBody.translation()
+    if (clock.elapsedTime >= portalCooldownUntil.current) {
+      const transition = getPortalTransition(
+        zone,
+        position,
+        insideMirrorHall.current,
+      )
+      if (transition === 'enter-mirror-hall') {
+        insideMirrorHall.current = true
+        portalCooldownUntil.current = clock.elapsedTime + 0.8
+        rigidBody.setTranslation(MIRROR_HALL.entryPosition, true)
+        cameraSnapRequested.current = true
+        onMirrorHallPresenceChange(true)
+        position = rigidBody.translation()
+      } else if (transition === 'return-to-showroom') {
+        insideMirrorHall.current = false
+        portalCooldownUntil.current = clock.elapsedTime + 0.8
+        rigidBody.setTranslation(MIRROR_HALL.showroomReturnPosition, true)
+        cameraSnapRequested.current = true
+        onMirrorHallPresenceChange(false)
+        position = rigidBody.translation()
+      }
+    }
+
     const nearNpc =
+      zone === 'showroom' &&
       Math.hypot(position.x - NPC_POSITION.x, position.z - NPC_POSITION.z) <
       2.35
     if (nearNpc !== proximity.current) {
@@ -76,13 +249,70 @@ function Player({
     }
 
     if (position.y < -4) {
-      rigidBody.setTranslation({ x: 0, y: 1, z: 5 }, true)
+      rigidBody.setTranslation(
+        getSafePlayerPosition(zone, insideMirrorHall.current),
+        true,
+      )
+      cameraSnapRequested.current = true
+      position = rigidBody.translation()
     }
 
-    cameraPosition.set(position.x + 4.6, position.y + 4.1, position.z + 6.2)
-    camera.position.lerp(cameraPosition, 1 - Math.exp(-5 * delta))
+    const usesIndoorCamera =
+      insideMirrorHall.current ||
+      zone === 'responsibility-warehouse' ||
+      zone === 'connection-bridge'
+    const cameraDistance = usesIndoorCamera ? THIRD_PERSON_CAMERA_OFFSET_Z : 7.7
+    const cameraHeight = usesIndoorCamera ? 3.2 : 4.1
+    cameraPosition.set(
+      position.x + Math.sin(cameraYaw.current) * cameraDistance,
+      position.y + cameraHeight + cameraPitch.current,
+      position.z + Math.cos(cameraYaw.current) * cameraDistance,
+    )
     cameraTarget.set(position.x, position.y + 0.65, position.z)
+    cameraRayDirection.copy(cameraPosition).sub(cameraTarget)
+    const desiredCameraDistance = cameraRayDirection.length()
+    cameraRayDirection.normalize()
+    const cameraHit = world.castRay(
+      new rapier.Ray(cameraTarget, cameraRayDirection),
+      desiredCameraDistance,
+      true,
+      undefined,
+      undefined,
+      undefined,
+      rigidBody,
+    )
+    const cameraObstructed =
+      cameraHit !== null && cameraHit.timeOfImpact < desiredCameraDistance
+    if (cameraObstructed && cameraHit) {
+      const safeDistance = Math.max(1.1, cameraHit.timeOfImpact - 0.3)
+      cameraPosition
+        .copy(cameraTarget)
+        .addScaledVector(cameraRayDirection, safeDistance)
+    }
+    if (
+      cameraZone.current !== zone ||
+      cameraSnapRequested.current ||
+      reducedMotion
+    ) {
+      camera.position.copy(cameraPosition)
+      cameraZone.current = zone
+      cameraSnapRequested.current = false
+    } else {
+      camera.position.lerp(cameraPosition, 1 - Math.exp(-5 * delta))
+    }
     camera.lookAt(cameraTarget)
+
+    if (
+      onNavigationSample &&
+      clock.elapsedTime - lastNavigationSampleAt.current >= 0.15
+    ) {
+      lastNavigationSampleAt.current = clock.elapsedTime
+      onNavigationSample({
+        position: { x: position.x, y: position.y, z: position.z },
+        cameraDistance: cameraPosition.distanceTo(cameraTarget),
+        cameraObstructed,
+      })
+    }
   })
 
   return (
@@ -92,7 +322,7 @@ function Player({
       colliders={false}
       enabledRotations={[false, false, false]}
       canSleep={false}
-      linearDamping={5}
+      linearDamping={0}
     >
       <CuboidCollider args={[0.34, 0.72, 0.34]} />
       <group ref={avatar} castShadow>
@@ -144,12 +374,418 @@ function Nor({ reducedMotion }: { reducedMotion: boolean }) {
   )
 }
 
-function World({ reducedMotion, zone, onNpcProximityChange }: GameCanvasProps) {
+function ProgressionGate({ unlocked }: { unlocked: boolean }) {
+  const pillarOuterEdge = 1.98
+  const sideBarrierHalfWidth = (SHOWROOM_HALF_SIZE - pillarOuterEdge) / 2
+  const sideBarrierCenter = pillarOuterEdge + sideBarrierHalfWidth
+
+  return (
+    <group position={[0, 0, PROGRESSION_PORTAL.z]}>
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider args={[0.38, 1.35, 0.4]} position={[-1.6, 1.35, 0]} />
+        <CuboidCollider args={[0.38, 1.35, 0.4]} position={[1.6, 1.35, 0]} />
+        <CuboidCollider
+          args={[sideBarrierHalfWidth, 1.4, 0.2]}
+          position={[-sideBarrierCenter, 1.4, 0]}
+        />
+        <CuboidCollider
+          args={[sideBarrierHalfWidth, 1.4, 0.2]}
+          position={[sideBarrierCenter, 1.4, 0]}
+        />
+      </RigidBody>
+      {[-sideBarrierCenter, sideBarrierCenter].map((x) => (
+        <mesh key={x} castShadow receiveShadow position={[x, 1.4, 0]}>
+          <boxGeometry args={[sideBarrierHalfWidth * 2, 2.8, 0.4]} />
+          <meshStandardMaterial color="#00464d" roughness={0.88} />
+        </mesh>
+      ))}
+      <mesh castShadow position={[-1.6, 1.35, 0]}>
+        <boxGeometry args={[0.75, 2.7, 0.8]} />
+        <meshStandardMaterial color="#723e33" roughness={0.82} />
+      </mesh>
+      <mesh castShadow position={[1.6, 1.35, 0]}>
+        <boxGeometry args={[0.75, 2.7, 0.8]} />
+        <meshStandardMaterial color="#723e33" roughness={0.82} />
+      </mesh>
+      <mesh castShadow position={[0, 2.62, 0]}>
+        <boxGeometry args={[4, 0.55, 0.82]} />
+        <meshStandardMaterial color="#723e33" roughness={0.82} />
+      </mesh>
+
+      {unlocked ? (
+        <mesh position={[0, 1.28, 0.02]}>
+          <boxGeometry args={[2.45, 2.35, 0.12]} />
+          <meshStandardMaterial
+            color="#015945"
+            emissive="#02a67f"
+            emissiveIntensity={1.25}
+            roughness={0.34}
+            metalness={0.35}
+            transparent
+            opacity={0.92}
+          />
+        </mesh>
+      ) : (
+        <RigidBody type="fixed" colliders={false}>
+          <CuboidCollider args={[1.25, 1.22, 0.22]} position={[0, 1.22, 0]} />
+          <mesh castShadow position={[0, 1.22, 0]}>
+            <boxGeometry args={[2.5, 2.44, 0.42]} />
+            <meshStandardMaterial color="#00467a" roughness={0.78} />
+          </mesh>
+          <mesh position={[0, 1.22, 0.23]}>
+            <torusGeometry args={[0.56, 0.09, 10, 24]} />
+            <meshStandardMaterial color="#ffc46b" roughness={0.56} />
+          </mesh>
+        </RigidBody>
+      )}
+    </group>
+  )
+}
+
+function MirrorPanel({
+  position,
+  rotation = [0, 0, 0],
+  accent,
+}: {
+  position: [number, number, number]
+  rotation?: [number, number, number]
+  accent: string
+}) {
+  return (
+    <group position={position} rotation={rotation}>
+      <mesh castShadow>
+        <boxGeometry args={[2.35, 3.25, 0.2]} />
+        <meshStandardMaterial
+          color={accent}
+          emissive="#02a67f"
+          emissiveIntensity={0.1}
+          metalness={0.76}
+          roughness={0.2}
+        />
+      </mesh>
+      <mesh position={[0, -1.9, 0.22]} castShadow>
+        <cylinderGeometry args={[0.74, 0.98, 0.55, 7]} />
+        <meshStandardMaterial color="#247360" roughness={0.84} />
+      </mesh>
+    </group>
+  )
+}
+
+function MirrorHall() {
+  const frontZ = MIRROR_HALL.centerZ + MIRROR_HALL.halfDepth
+  const backZ = MIRROR_HALL.centerZ - MIRROR_HALL.halfDepth
+  const wallY = MIRROR_HALL.wallHeight / 2
+  const width = MIRROR_HALL.halfWidth * 2
+  const depth = MIRROR_HALL.halfDepth * 2
+
+  return (
+    <group>
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider
+          args={[MIRROR_HALL.halfWidth, 0.1, MIRROR_HALL.halfDepth]}
+          position={[0, -0.1, MIRROR_HALL.centerZ]}
+        />
+        <CuboidCollider
+          args={[MIRROR_HALL.halfWidth, wallY, 0.2]}
+          position={[0, wallY, frontZ]}
+        />
+        <CuboidCollider
+          args={[MIRROR_HALL.halfWidth, wallY, 0.2]}
+          position={[0, wallY, backZ]}
+        />
+        <CuboidCollider
+          args={[0.2, wallY, MIRROR_HALL.halfDepth]}
+          position={[-MIRROR_HALL.halfWidth, wallY, MIRROR_HALL.centerZ]}
+        />
+        <CuboidCollider
+          args={[0.2, wallY, MIRROR_HALL.halfDepth]}
+          position={[MIRROR_HALL.halfWidth, wallY, MIRROR_HALL.centerZ]}
+        />
+        <CuboidCollider
+          args={[MIRROR_HALL.halfWidth, 0.1, MIRROR_HALL.halfDepth]}
+          position={[0, MIRROR_HALL.wallHeight, MIRROR_HALL.centerZ]}
+        />
+
+        <mesh receiveShadow position={[0, -0.1, MIRROR_HALL.centerZ]}>
+          <boxGeometry args={[width, 0.2, depth]} />
+          <meshStandardMaterial color="#015945" roughness={0.78} />
+        </mesh>
+        <mesh castShadow receiveShadow position={[0, wallY, frontZ]}>
+          <boxGeometry args={[width, MIRROR_HALL.wallHeight, 0.4]} />
+          <meshStandardMaterial color="#00464d" emissive="#002e38" emissiveIntensity={0.18} roughness={0.86} />
+        </mesh>
+        <mesh castShadow receiveShadow position={[0, wallY, backZ]}>
+          <boxGeometry args={[width, MIRROR_HALL.wallHeight, 0.4]} />
+          <meshStandardMaterial color="#00464d" emissive="#002e38" emissiveIntensity={0.18} roughness={0.86} />
+        </mesh>
+        <mesh castShadow receiveShadow position={[-MIRROR_HALL.halfWidth, wallY, MIRROR_HALL.centerZ]}>
+          <boxGeometry args={[0.4, MIRROR_HALL.wallHeight, depth]} />
+          <meshStandardMaterial color="#00464d" emissive="#002e38" emissiveIntensity={0.18} roughness={0.86} />
+        </mesh>
+        <mesh castShadow receiveShadow position={[MIRROR_HALL.halfWidth, wallY, MIRROR_HALL.centerZ]}>
+          <boxGeometry args={[0.4, MIRROR_HALL.wallHeight, depth]} />
+          <meshStandardMaterial color="#00464d" emissive="#002e38" emissiveIntensity={0.18} roughness={0.86} />
+        </mesh>
+        <mesh castShadow receiveShadow position={[0, MIRROR_HALL.wallHeight, MIRROR_HALL.centerZ]}>
+          <boxGeometry args={[width, 0.2, depth]} />
+          <meshStandardMaterial color="#003b3f" roughness={0.92} />
+        </mesh>
+      </RigidBody>
+
+      {[-38.5, -42, -45.5, -49, -52.5, -56].map((z, index) => (
+        <mesh key={`floor-marker-${z}`} receiveShadow position={[0, 0.025, z]}>
+          <boxGeometry args={[3.4, 0.05, 2.45]} />
+          <meshStandardMaterial
+            color={index % 2 ? '#7befb2' : '#c4f2da'}
+            emissive="#02a67f"
+            emissiveIntensity={0.28}
+            roughness={0.7}
+          />
+        </mesh>
+      ))}
+
+      {[-8.2, -2.8, 2.8, 8.2].map((x, index) => (
+        <MirrorPanel
+          key={`back-mirror-${x}`}
+          position={[x, 2.05, backZ + 0.32]}
+          accent={index % 2 ? '#c4f2da' : '#7befb2'}
+        />
+      ))}
+      {[-40, -46, -52].map((z, index) => (
+        <MirrorPanel
+          key={`left-mirror-${z}`}
+          position={[-MIRROR_HALL.halfWidth + 0.32, 2.05, z]}
+          rotation={[0, Math.PI / 2, 0]}
+          accent={index % 2 ? '#7befb2' : '#c4f2da'}
+        />
+      ))}
+      {[-40, -46, -52].map((z, index) => (
+        <MirrorPanel
+          key={`right-mirror-${z}`}
+          position={[MIRROR_HALL.halfWidth - 0.32, 2.05, z]}
+          rotation={[0, -Math.PI / 2, 0]}
+          accent={index % 2 ? '#c4f2da' : '#7befb2'}
+        />
+      ))}
+
+      <group position={[0, 1.35, frontZ - 0.28]} rotation={[0, Math.PI, 0]}>
+        <mesh>
+          <boxGeometry args={[2.6, 2.5, 0.14]} />
+          <meshStandardMaterial
+            color="#015945"
+            emissive="#02a67f"
+            emissiveIntensity={0.85}
+            roughness={0.32}
+          />
+        </mesh>
+        <mesh position={[0, 0, 0.1]}>
+          <torusGeometry args={[0.62, 0.08, 10, 24]} />
+          <meshStandardMaterial color="#ffc46b" emissive="#e85800" emissiveIntensity={0.45} />
+        </mesh>
+      </group>
+
+      <ambientLight color="#c4f2da" intensity={1.15} />
+      <pointLight color="#7befb2" intensity={4.4} distance={20} position={[0, 4, -42]} />
+      <pointLight color="#ffc46b" intensity={3.4} distance={18} position={[0, 3.4, -53]} />
+    </group>
+  )
+}
+
+function ResponsibilityWarehouse() {
+  const { centerX, centerZ, halfWidth, halfDepth, wallHeight } =
+    RESPONSIBILITY_WAREHOUSE
+  const wallY = wallHeight / 2
+  const width = halfWidth * 2
+  const depth = halfDepth * 2
+  const frontZ = centerZ + halfDepth
+  const backZ = centerZ - halfDepth
+  const shelfPositions: [number, number][] = [
+    [-7.5, -43],
+    [-7.5, -50],
+    [7.5, -43],
+    [7.5, -50],
+  ]
+
+  return (
+    <group>
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider
+          args={[halfWidth, 0.1, halfDepth]}
+          position={[centerX, -0.1, centerZ]}
+        />
+        <CuboidCollider args={[halfWidth, wallY, 0.2]} position={[centerX, wallY, frontZ]} />
+        <CuboidCollider args={[halfWidth, wallY, 0.2]} position={[centerX, wallY, backZ]} />
+        <CuboidCollider args={[0.2, wallY, halfDepth]} position={[centerX - halfWidth, wallY, centerZ]} />
+        <CuboidCollider args={[0.2, wallY, halfDepth]} position={[centerX + halfWidth, wallY, centerZ]} />
+        <CuboidCollider args={[halfWidth, 0.1, halfDepth]} position={[centerX, wallHeight, centerZ]} />
+
+        <mesh receiveShadow position={[centerX, -0.1, centerZ]}>
+          <boxGeometry args={[width, 0.2, depth]} />
+          <meshStandardMaterial color="#5b4636" roughness={0.9} />
+        </mesh>
+        <mesh castShadow receiveShadow position={[centerX, wallY, frontZ]}>
+          <boxGeometry args={[width, wallHeight, 0.4]} />
+          <meshStandardMaterial color="#003f49" roughness={0.88} />
+        </mesh>
+        <mesh castShadow receiveShadow position={[centerX, wallY, backZ]}>
+          <boxGeometry args={[width, wallHeight, 0.4]} />
+          <meshStandardMaterial color="#003f49" roughness={0.88} />
+        </mesh>
+        <mesh castShadow receiveShadow position={[centerX - halfWidth, wallY, centerZ]}>
+          <boxGeometry args={[0.4, wallHeight, depth]} />
+          <meshStandardMaterial color="#00464d" roughness={0.88} />
+        </mesh>
+        <mesh castShadow receiveShadow position={[centerX + halfWidth, wallY, centerZ]}>
+          <boxGeometry args={[0.4, wallHeight, depth]} />
+          <meshStandardMaterial color="#00464d" roughness={0.88} />
+        </mesh>
+        <mesh castShadow receiveShadow position={[centerX, wallHeight, centerZ]}>
+          <boxGeometry args={[width, 0.2, depth]} />
+          <meshStandardMaterial color="#002920" roughness={0.94} />
+        </mesh>
+      </RigidBody>
+
+      {shelfPositions.map(([xOffset, z], shelfIndex) => {
+        const x = centerX + xOffset
+        return (
+          <RigidBody key={`${x}-${z}`} type="fixed" colliders={false}>
+            <CuboidCollider args={[2.5, 1.6, 0.65]} position={[x, 1.6, z]} />
+            {[-2.35, 2.35].map((postX) => (
+              <mesh key={postX} castShadow position={[x + postX, 1.65, z]}>
+                <boxGeometry args={[0.18, 3.3, 0.75]} />
+                <meshStandardMaterial color="#723e33" roughness={0.82} />
+              </mesh>
+            ))}
+            {[0.35, 1.55, 2.75].map((y) => (
+              <mesh key={y} castShadow position={[x, y, z]}>
+                <boxGeometry args={[4.9, 0.16, 1.2]} />
+                <meshStandardMaterial color="#9a6956" roughness={0.86} />
+              </mesh>
+            ))}
+            {[0.85, 2.05].map((y, index) => (
+              <mesh key={y} castShadow position={[x + (index ? 0.9 : -0.8), y, z]}>
+                <boxGeometry args={[1.45, 0.75, 0.9]} />
+                <meshStandardMaterial
+                  color={(shelfIndex + index) % 3 === 0 ? '#ffc46b' : (shelfIndex + index) % 3 === 1 ? '#7befb2' : '#00467a'}
+                  roughness={0.78}
+                />
+              </mesh>
+            ))}
+          </RigidBody>
+        )
+      })}
+
+      {[-55, -51, -47, -43, -39].map((z, index) => (
+        <mesh key={`warehouse-path-${z}`} receiveShadow position={[centerX, 0.025, z]}>
+          <boxGeometry args={[3.5, 0.05, 2.6]} />
+          <meshStandardMaterial
+            color={index % 2 ? '#ffc46b' : '#c4f2da'}
+            emissive={index % 2 ? '#e85800' : '#02a67f'}
+            emissiveIntensity={0.18}
+            roughness={0.72}
+          />
+        </mesh>
+      ))}
+
+      <group position={[centerX, 1.5, backZ + 0.3]}>
+        <mesh castShadow>
+          <boxGeometry args={[5.2, 2.8, 0.25]} />
+          <meshStandardMaterial color="#00467a" emissive="#003f49" emissiveIntensity={0.25} />
+        </mesh>
+        <mesh position={[0, 0, 0.18]}>
+          <torusGeometry args={[0.78, 0.1, 10, 28]} />
+          <meshStandardMaterial color="#ffc46b" emissive="#e85800" emissiveIntensity={0.5} />
+        </mesh>
+      </group>
+
+      <ambientLight color="#c4f2da" intensity={1.1} />
+      <pointLight color="#ffc46b" intensity={4.2} distance={20} position={[centerX, 4.4, -42]} />
+      <pointLight color="#7befb2" intensity={3.8} distance={18} position={[centerX, 3.8, -53]} />
+    </group>
+  )
+}
+
+function ConnectionBridge() {
+  const { centerX, centerZ, halfWidth, halfDepth, wallHeight } = CONNECTION_BRIDGE
+  const wallY = wallHeight / 2
+  const width = halfWidth * 2
+  const depth = halfDepth * 2
+  const frontZ = centerZ + halfDepth
+  const backZ = centerZ - halfDepth
+
+  return (
+    <group>
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider args={[halfWidth, 0.1, halfDepth]} position={[centerX, -0.1, centerZ]} />
+        <CuboidCollider args={[halfWidth, wallY, 0.2]} position={[centerX, wallY, frontZ]} />
+        <CuboidCollider args={[halfWidth, wallY, 0.2]} position={[centerX, wallY, backZ]} />
+        <CuboidCollider args={[0.2, wallY, halfDepth]} position={[centerX - halfWidth, wallY, centerZ]} />
+        <CuboidCollider args={[0.2, wallY, halfDepth]} position={[centerX + halfWidth, wallY, centerZ]} />
+        <CuboidCollider args={[halfWidth, 0.1, halfDepth]} position={[centerX, wallHeight, centerZ]} />
+        <mesh receiveShadow position={[centerX, -0.1, centerZ]}>
+          <boxGeometry args={[width, 0.2, depth]} />
+          <meshStandardMaterial color="#00464d" roughness={0.78} />
+        </mesh>
+        {[
+          [centerX, wallY, frontZ, width, wallHeight, 0.4],
+          [centerX, wallY, backZ, width, wallHeight, 0.4],
+          [centerX - halfWidth, wallY, centerZ, 0.4, wallHeight, depth],
+          [centerX + halfWidth, wallY, centerZ, 0.4, wallHeight, depth],
+        ].map(([x, y, z, sx, sy, sz], index) => (
+          <mesh key={index} castShadow receiveShadow position={[x, y, z]}>
+            <boxGeometry args={[sx, sy, sz]} />
+            <meshStandardMaterial color={index < 2 ? '#003f49' : '#00467a'} roughness={0.86} />
+          </mesh>
+        ))}
+        <mesh castShadow position={[centerX, wallHeight, centerZ]}>
+          <boxGeometry args={[width, 0.2, depth]} />
+          <meshStandardMaterial color="#002920" roughness={0.92} />
+        </mesh>
+      </RigidBody>
+
+      {[-54, -50, -46, -42, -38].map((z, index) => (
+        <group key={z} position={[centerX, 0.03, z]}>
+          <mesh receiveShadow>
+            <boxGeometry args={[5.2, 0.06, 2.8]} />
+            <meshStandardMaterial
+              color={index % 2 ? '#7befb2' : '#ffc46b'}
+              emissive={index % 2 ? '#02a67f' : '#e85800'}
+              emissiveIntensity={0.25}
+            />
+          </mesh>
+          <mesh position={[-4.2, 1.25, 0]} castShadow>
+            <octahedronGeometry args={[0.62, 0]} />
+            <meshStandardMaterial color="#7befb2" emissive="#02a67f" emissiveIntensity={0.55} />
+          </mesh>
+          <mesh position={[4.2, 1.25, 0]} castShadow>
+            <octahedronGeometry args={[0.62, 0]} />
+            <meshStandardMaterial color="#ffc46b" emissive="#e85800" emissiveIntensity={0.45} />
+          </mesh>
+        </group>
+      ))}
+      <ambientLight color="#c4f2da" intensity={1.2} />
+      <pointLight color="#7befb2" intensity={4.2} distance={20} position={[centerX - 5, 4, -43]} />
+      <pointLight color="#ffc46b" intensity={4} distance={20} position={[centerX + 5, 4, -51]} />
+    </group>
+  )
+}
+
+function World({
+  reducedMotion,
+  cameraSensitivity,
+  movementSpeed,
+  zone,
+  onNpcProximityChange,
+  onMirrorHallPresenceChange,
+  onNavigationSample,
+}: GameCanvasProps) {
   const isMirrorHall = zone === 'mirror-hall'
+  const isResponsibilityWarehouse = zone === 'responsibility-warehouse'
+  const isConnectionBridge = zone === 'connection-bridge'
   return (
     <>
-      <color attach="background" args={[isMirrorHall ? '#002e38' : '#002920']} />
-      <fog attach="fog" args={[isMirrorHall ? '#002e38' : '#002920', 10, 27]} />
+      <color attach="background" args={['#002920']} />
+      <fog attach="fog" args={['#002920', 10, 27]} />
       <hemisphereLight args={['#c4f2da', '#002920', 1.5]} />
       <directionalLight
         castShadow
@@ -160,19 +796,37 @@ function World({ reducedMotion, zone, onNpcProximityChange }: GameCanvasProps) {
       />
 
       <RigidBody type="fixed" colliders={false}>
-        <CuboidCollider args={[10, 0.1, 10]} position={[0, -0.1, 0]} />
-        <CuboidCollider args={[10, 1.4, 0.2]} position={[0, 1.2, -10]} />
-        <CuboidCollider args={[10, 1.4, 0.2]} position={[0, 1.2, 10]} />
-        <CuboidCollider args={[0.2, 1.4, 10]} position={[-10, 1.2, 0]} />
-        <CuboidCollider args={[0.2, 1.4, 10]} position={[10, 1.2, 0]} />
+        <CuboidCollider args={[SHOWROOM_HALF_SIZE, 0.1, SHOWROOM_HALF_SIZE]} position={[0, -0.1, 0]} />
+        <CuboidCollider
+          args={[SHOWROOM_HALF_SIZE, SHOWROOM_WALL_HALF_HEIGHT, 0.2]}
+          position={[0, SHOWROOM_WALL_HALF_HEIGHT, -SHOWROOM_HALF_SIZE]}
+        />
+        <CuboidCollider
+          args={[SHOWROOM_HALF_SIZE, SHOWROOM_WALL_HALF_HEIGHT, 0.2]}
+          position={[0, SHOWROOM_WALL_HALF_HEIGHT, SHOWROOM_HALF_SIZE]}
+        />
+        <CuboidCollider
+          args={[0.2, SHOWROOM_WALL_HALF_HEIGHT, SHOWROOM_HALF_SIZE]}
+          position={[-SHOWROOM_HALF_SIZE, SHOWROOM_WALL_HALF_HEIGHT, 0]}
+        />
+        <CuboidCollider
+          args={[0.2, SHOWROOM_WALL_HALF_HEIGHT, SHOWROOM_HALF_SIZE]}
+          position={[SHOWROOM_HALF_SIZE, SHOWROOM_WALL_HALF_HEIGHT, 0]}
+        />
         <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[20, 20]} />
+          <planeGeometry args={[SHOWROOM_HALF_SIZE * 2, SHOWROOM_HALF_SIZE * 2]} />
           <meshStandardMaterial color="#015945" roughness={0.94} />
         </mesh>
       </RigidBody>
 
       {[-7, -3.5, 3.5, 7].map((x, index) => (
-        <group key={x} position={[x, 0, index % 2 ? -5.5 : 3.8]}>
+        <RigidBody
+          key={x}
+          type="fixed"
+          colliders={false}
+          position={[x, 0, index % 2 ? -5.5 : 3.8]}
+        >
+          <CuboidCollider args={[0.5, 0.7, 0.5]} position={[0, 0.7, 0]} />
           <mesh castShadow position={[0, 0.65, 0]}>
             <cylinderGeometry args={[0.4, 0.62, 1.3, 7]} />
             <meshStandardMaterial color="#723e33" roughness={0.9} />
@@ -181,53 +835,27 @@ function World({ reducedMotion, zone, onNpcProximityChange }: GameCanvasProps) {
             <coneGeometry args={[1.35, 2.5, 7]} />
             <meshStandardMaterial color={index % 2 ? '#247360' : '#02a67f'} roughness={0.88} />
           </mesh>
-        </group>
+        </RigidBody>
       ))}
 
-      {isMirrorHall && [-6, -2, 2, 6].map((x, index) => (
-        <group key={`actor-mirror-${x}`} position={[x, 1.45, -7.2]}>
-          <mesh castShadow>
-            <boxGeometry args={[2.1, 2.9, 0.18]} />
-            <meshStandardMaterial
-              color={index % 2 ? '#c4f2da' : '#7befb2'}
-              emissive="#02a67f"
-              emissiveIntensity={0.12}
-              metalness={0.72}
-              roughness={0.24}
-            />
-          </mesh>
-          <mesh position={[0, -1.72, 0.25]} castShadow>
-            <cylinderGeometry args={[0.72, 0.92, 0.55, 7]} />
-            <meshStandardMaterial color="#247360" roughness={0.84} />
-          </mesh>
-        </group>
-      ))}
+      <ProgressionGate unlocked={isMirrorHall} />
+      {isMirrorHall && <MirrorHall />}
+      {isResponsibilityWarehouse && <ResponsibilityWarehouse />}
+      {isConnectionBridge && <ConnectionBridge />}
 
-      <group position={[0, 0, -4.1]}>
-        <mesh castShadow position={[-1.6, 1.25, 0]}>
-          <boxGeometry args={[0.75, 2.5, 0.7]} />
-          <meshStandardMaterial color="#723e33" roughness={0.82} />
-        </mesh>
-        <mesh castShadow position={[1.6, 1.25, 0]}>
-          <boxGeometry args={[0.75, 2.5, 0.7]} />
-          <meshStandardMaterial color="#723e33" roughness={0.82} />
-        </mesh>
-        <mesh castShadow position={[0, 2.45, 0]}>
-          <boxGeometry args={[4, 0.52, 0.72]} />
-          <meshStandardMaterial color="#723e33" roughness={0.82} />
-        </mesh>
-        <mesh position={[0, 1.15, 0]}>
-          <torusGeometry args={[1.05, 0.1, 10, 24, Math.PI]} />
-          <meshStandardMaterial
-            color="#7befb2"
-            emissive="#02a67f"
-            emissiveIntensity={1.2}
-          />
-        </mesh>
-      </group>
-
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider args={[0.48, 0.8, 0.48]} position={NPC_POSITION.toArray()} />
+      </RigidBody>
       <Nor reducedMotion={reducedMotion} />
-      <Player onNpcProximityChange={onNpcProximityChange} />
+      <Player
+        reducedMotion={reducedMotion}
+        cameraSensitivity={cameraSensitivity}
+        movementSpeed={movementSpeed}
+        zone={zone}
+        onNpcProximityChange={onNpcProximityChange}
+        onMirrorHallPresenceChange={onMirrorHallPresenceChange}
+        onNavigationSample={onNavigationSample}
+      />
     </>
   )
 }

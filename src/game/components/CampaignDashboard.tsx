@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { evaluateProductionReadiness } from '../compliance/productionReadiness'
+import { productionApprovalState } from '../compliance/productionApprovalState'
+import { productionRuleRegistry } from '../compliance/productionRules'
 import type { CampaignDefinition } from '../content/campaignSchema'
 import type {
   CampaignStageStatus,
@@ -28,7 +31,7 @@ export function CampaignDashboard({
   open,
   onClose,
 }: CampaignDashboardProps) {
-  const [view, setView] = useState<'journey' | 'journal'>('journey')
+  const [view, setView] = useState<'journey' | 'journal' | 'rules'>('journey')
   const [selectedStageId, setSelectedStageId] = useState(
     state.stages.find((stage) => stage.status === 'active')?.id ??
       campaign.stages[0].id,
@@ -58,6 +61,20 @@ export function CampaignDashboard({
   )
   const completedCount = state.stages.filter(
     (stage) => stage.status === 'completed',
+  ).length
+  const productionReadiness = evaluateProductionReadiness(
+    productionRuleRegistry,
+    productionApprovalState.assessments,
+    productionApprovalState.approvals,
+  )
+  const missingApplicabilityCount = productionReadiness.blockers.filter(
+    (blocker) => blocker.kind === 'applicability-missing',
+  ).length
+  const missingApprovalCount = productionReadiness.blockers.filter(
+    (blocker) => blocker.kind === 'approval-missing',
+  ).length
+  const expiredSourceCount = productionReadiness.blockers.filter(
+    (blocker) => blocker.kind === 'source-expired',
   ).length
 
   return (
@@ -108,6 +125,14 @@ export function CampaignDashboard({
             onClick={() => setView('journal')}
           >
             Beslutningsjournal ({state.decisions.length})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'rules'}
+            onClick={() => setView('rules')}
+          >
+            Regler ({productionRuleRegistry.rules.length})
           </button>
         </div>
 
@@ -169,6 +194,25 @@ export function CampaignDashboard({
                 ))}
               </ul>
 
+              {selectedStage.requiredRuleIds.length > 0 && (
+                <>
+                  <h4>Obligatoriske regler</h4>
+                  <ul className="campaign-required-rules">
+                    {selectedStage.requiredRuleIds.map((ruleId) => {
+                      const rule = productionRuleRegistry.rules.find(
+                        (candidate) => candidate.id === ruleId,
+                      )
+                      return (
+                        <li key={ruleId}>
+                          <strong>{rule?.title ?? ruleId}</strong>
+                          <span>Faglig produksjonsgodkjenning mangler</span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </>
+              )}
+
               {selectedState && selectedState.evidence.length > 0 && (
                 <>
                   <h4>Registrert evidens</h4>
@@ -187,7 +231,7 @@ export function CampaignDashboard({
               </div>
             </article>
           </div>
-        ) : (
+        ) : view === 'journal' ? (
           <section className="decision-journal" role="tabpanel">
             {state.decisions.length === 0 ? (
               <div className="empty-state">
@@ -208,6 +252,79 @@ export function CampaignDashboard({
                 </article>
               ))
             )}
+          </section>
+        ) : (
+          <section className="production-rules" role="tabpanel" aria-label="Obligatoriske regler">
+            <div className="production-gate" role="status">
+              <span>Produksjonsport</span>
+              <strong>Blokkert – faglig verifikasjon og godkjenning gjenstår</strong>
+              <p>
+                Reglene er obligatoriske i læringsløpet, men denne løsningen har
+                ingen registrerte myndighets- eller faglige godkjenninger.
+              </p>
+              <ul>
+                <li>{missingApplicabilityCount} anvendelsesvurderinger mangler</li>
+                <li>{missingApprovalCount} rollegodkjenninger mangler</li>
+                <li>{expiredSourceCount} kilder har passert kontrollfristen</li>
+              </ul>
+            </div>
+
+            <div className="production-rule-list">
+              {productionRuleRegistry.rules.map((rule) => (
+                <article key={rule.id} id={`rule-${rule.id}`}>
+                  <header>
+                    <div>
+                      <span>{rule.id}</span>
+                      <h3>{rule.title}</h3>
+                    </div>
+                    <em>Avventer faglig godkjenning</em>
+                  </header>
+                  <blockquote>{rule.exactClaim}</blockquote>
+                  <dl>
+                    <div><dt>Gjelder når</dt><dd>{rule.appliesWhen}</dd></div>
+                    <div><dt>Tjenesteområde</dt><dd>{rule.serviceScope}</dd></div>
+                    <div><dt>Godkjennere</dt><dd>{rule.requiredApproverRoles.join(', ')}</dd></div>
+                  </dl>
+                  <h4>Forventet evidens</h4>
+                  <ul>
+                    {rule.expectedEvidence.map((evidence) => (
+                      <li key={evidence}>{evidence}</li>
+                    ))}
+                  </ul>
+                  {rule.exceptions.length > 0 && (
+                    <details>
+                      <summary>Unntak og avgrensninger</summary>
+                      <ul>
+                        {rule.exceptions.map((exception) => (
+                          <li key={exception}>{exception}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                  <div className="production-rule-sources">
+                    {rule.sourceIds.map((sourceId) => {
+                      const source = productionRuleRegistry.sources.find(
+                        (candidate) => candidate.id === sourceId,
+                      )
+                      if (!source) return null
+                      return (
+                        <div key={sourceId}>
+                          <strong>{source.title}</strong>
+                          <span>
+                            {source.version} · kontrollert {source.verifiedAt} · ny kontroll {source.recheckDueAt}
+                          </span>
+                          {source.urls.map((url, index) => (
+                            <a key={url} href={url} target="_blank" rel="noreferrer">
+                              Kilde {index + 1}
+                            </a>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </article>
+              ))}
+            </div>
           </section>
         )}
       </div>

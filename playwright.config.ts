@@ -7,6 +7,9 @@ export default defineConfig({
     timeout: 10_000,
   },
   fullyParallel: true,
+  // WebGL + Rapier contexts contend heavily on shared/headless GPU resources.
+  // Serial browser workers keep timing evidence deterministic across CI hosts.
+  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: 'html',
