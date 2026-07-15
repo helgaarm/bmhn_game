@@ -11,6 +11,7 @@ export interface WorldPosition {
 }
 
 export const SHOWROOM_HALF_SIZE = 10
+export const SHOWROOM_WALL_HALF_HEIGHT = 3
 export const THIRD_PERSON_CAMERA_OFFSET_Z = 6.2
 
 export const PROGRESSION_PORTAL = {
@@ -24,6 +25,7 @@ export const MIRROR_HALL = {
   halfWidth: 12,
   halfDepth: 14,
   wallHeight: 5.2,
+  showroomApproachPosition: { x: 0, y: 1, z: -2.7 },
   entryPosition: { x: 0, y: 1, z: -39 },
   returnThresholdZ: -33.15,
   showroomReturnPosition: { x: 0, y: 1, z: -3.15 },

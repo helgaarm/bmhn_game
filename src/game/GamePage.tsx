@@ -4,7 +4,7 @@ import { BrandLockup } from '../components/BrandLockup'
 import { CampaignDashboard } from './components/CampaignDashboard'
 import { ClarifyOrderQuest } from './components/ClarifyOrderQuest'
 import { ConnectQuest } from './components/ConnectQuest'
-import { GameCanvas } from './components/GameCanvas'
+import { GameCanvas, type NavigationSample } from './components/GameCanvas'
 import { GameErrorBoundary } from './components/GameErrorBoundary'
 import { InGameDialogueOverlay } from './components/InGameDialogueOverlay'
 import { UnderstandAssessQuest } from './components/UnderstandAssessQuest'
@@ -38,6 +38,7 @@ import {
   initialConnectState,
 } from './state/connectMachine'
 import { isTextEntryTarget, matchesControlKey } from './input/controlMap'
+import { DEFAULT_PLAYER_SPEED } from './physics/playerMotion'
 import {
   clearGameSave,
   loadGameSave,
@@ -149,6 +150,7 @@ export default function GamePage() {
   )
   const [reducedMotion, setReducedMotion] = useState(false)
   const [cameraSensitivity, setCameraSensitivity] = useState(1)
+  const [movementSpeed, setMovementSpeed] = useState(DEFAULT_PLAYER_SPEED)
   const [highContrast, setHighContrast] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [campaignOpen, setCampaignOpen] = useState(false)
@@ -158,6 +160,7 @@ export default function GamePage() {
   const [insideMirrorHall, setInsideMirrorHall] = useState(false)
   const [firstFrameMs, setFirstFrameMs] = useState<number | null>(null)
   const [fps, setFps] = useState<number | null>(null)
+  const [navigationSample, setNavigationSample] = useState<NavigationSample | null>(null)
   const [saveEnabled, setSaveEnabled] = useState(
     loadedSave.status !== 'incompatible' && loadedSave.status !== 'unavailable',
   )
@@ -600,6 +603,18 @@ export default function GamePage() {
               onChange={(event) => setCameraSensitivity(Number(event.target.value))}
             />
           </label>
+          <label className="settings-panel__range" htmlFor="movement-speed">
+            Bevegelseshastighet: {movementSpeed.toFixed(1)} m/s
+            <input
+              id="movement-speed"
+              type="range"
+              min="2.4"
+              max="5.2"
+              step="0.2"
+              value={movementSpeed}
+              onChange={(event) => setMovementSpeed(Number(event.target.value))}
+            />
+          </label>
           <p className="settings-panel__help">
             Dra med musen, eller bruk Q/R og Page Up/Page Down. C nullstiller kameraet.
           </p>
@@ -628,6 +643,24 @@ export default function GamePage() {
               <div><dt>Første bilde</dt><dd>{firstFrameMs === null ? 'Venter' : `${firstFrameMs} ms`}</dd></div>
               <div><dt>FPS-estimat</dt><dd>{fps ?? 'Måler'}</dd></div>
               <div><dt>JS-minne</dt><dd>{readMemoryEstimateMb() === null ? 'Ikke tilgjengelig' : `${readMemoryEstimateMb()} MB`}</dd></div>
+              <div>
+                <dt>Spillerposisjon</dt>
+                <dd data-testid="player-position">
+                  {navigationSample
+                    ? `${navigationSample.position.x.toFixed(2)}, ${navigationSample.position.y.toFixed(2)}, ${navigationSample.position.z.toFixed(2)}`
+                    : 'Måler'}
+                </dd>
+              </div>
+              <div>
+                <dt>Kamerakollisjon</dt>
+                <dd data-testid="camera-collision-status">
+                  {navigationSample
+                    ? navigationSample.cameraObstructed
+                      ? `Beskyttet (${navigationSample.cameraDistance.toFixed(2)} m)`
+                      : `Fri (${navigationSample.cameraDistance.toFixed(2)} m)`
+                    : 'Måler'}
+                </dd>
+              </div>
             </dl>
           )}
         </section>
@@ -664,6 +697,7 @@ export default function GamePage() {
               <GameCanvas
                 reducedMotion={reducedMotion}
                 cameraSensitivity={cameraSensitivity}
+                movementSpeed={movementSpeed}
                 zone={
                   connectionActive
                     ? 'connection-bridge'
@@ -677,6 +711,7 @@ export default function GamePage() {
                 onMirrorHallPresenceChange={setInsideMirrorHall}
                 onFirstFrame={handleFirstFrame}
                 onFpsSample={diagnosticsOpen ? setFps : undefined}
+                onNavigationSample={diagnosticsOpen ? setNavigationSample : undefined}
               />
             </GameErrorBoundary>
             {!sceneReady && (

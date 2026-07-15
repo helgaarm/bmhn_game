@@ -344,6 +344,54 @@ test('completes the first four stages through Connect', async ({ page }, testInf
   await expect(campaignDialog.getByText('4 av 9 steg fullført')).toBeVisible()
 })
 
+test('Rapier blocks the player at the locked gate and showroom wall', async ({
+  page,
+}) => {
+  test.setTimeout(90_000)
+  await page.goto('/game')
+  await expect(page.getByText('Klargjør visningshallen')).toBeHidden()
+
+  await page.getByRole('button', { name: 'Innstillinger' }).click()
+  await page.getByRole('button', { name: 'Vis teknisk diagnose' }).click()
+  const position = page.getByTestId('player-position')
+  const cameraCollision = page.getByTestId('camera-collision-status')
+  await expect(position).not.toHaveText('Måler')
+  await expect(cameraCollision).toContainText('Beskyttet')
+
+  const readPosition = async () => {
+    const values = (await position.textContent())
+      ?.split(',')
+      .map((value) => Number(value.trim()))
+    expect(values).toHaveLength(3)
+    return values ?? [0, 0, 0]
+  }
+
+  await page.locator('canvas').click({ position: { x: 120, y: 300 } })
+  await page.keyboard.down('KeyD')
+  await page.waitForTimeout(700)
+  await page.keyboard.up('KeyD')
+  await expect.poll(async () => (await readPosition())[0]).toBeGreaterThan(1)
+
+  await page.keyboard.down('ArrowUp')
+  await page.waitForTimeout(3_200)
+  await page.keyboard.up('ArrowUp')
+  await expect.poll(async () => (await readPosition())[2]).toBeLessThan(-2.5)
+  const lockedGatePosition = await readPosition()
+  expect(lockedGatePosition[2]).toBeGreaterThan(-3.75)
+
+  await page.keyboard.down('ArrowDown')
+  await page.waitForTimeout(1_500)
+  await page.keyboard.up('ArrowDown')
+  await expect.poll(async () => (await readPosition())[2]).toBeGreaterThan(0)
+
+  await page.keyboard.down('KeyD')
+  await page.waitForTimeout(3_200)
+  await page.keyboard.up('KeyD')
+  await expect.poll(async () => (await readPosition())[0]).toBeGreaterThan(8)
+  const wallPosition = await readPosition()
+  expect(wallPosition[0]).toBeLessThan(9.8)
+})
+
 test('unknown routes have a recovery path', async ({ page }) => {
   await page.goto('/ukjent')
   await expect(

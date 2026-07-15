@@ -5,6 +5,7 @@ import {
   Physics,
   RigidBody,
   type RapierRigidBody,
+  useRapier,
 } from '@react-three/rapier'
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import type { Group } from 'three'
@@ -21,6 +22,7 @@ import {
   DEFAULT_CAMERA_YAW,
   rotateMovementByCamera,
 } from '../input/cameraControls'
+import { advanceHorizontalVelocity } from '../physics/playerMotion'
 import {
   getPortalTransition,
   CONNECTION_BRIDGE,
@@ -28,35 +30,58 @@ import {
   PROGRESSION_PORTAL,
   RESPONSIBILITY_WAREHOUSE,
   SHOWROOM_HALF_SIZE,
+  SHOWROOM_WALL_HALF_HEIGHT,
   THIRD_PERSON_CAMERA_OFFSET_Z,
   type WorldZone,
 } from '../world/worldProgression'
 
+export interface NavigationSample {
+  position: { x: number; y: number; z: number }
+  cameraDistance: number
+  cameraObstructed: boolean
+}
+
 interface GameCanvasProps {
   reducedMotion: boolean
   cameraSensitivity: number
+  movementSpeed: number
   zone: WorldZone
   onNpcProximityChange: (isNear: boolean) => void
   onMirrorHallPresenceChange: (isInside: boolean) => void
   onFirstFrame?: () => void
   onFpsSample?: (fps: number) => void
+  onNavigationSample?: (sample: NavigationSample) => void
 }
 
 const NPC_POSITION = new Vector3(0, 1, -1.5)
 
+function getSafePlayerPosition(zone: WorldZone, insideMirrorHall: boolean) {
+  if (insideMirrorHall) return MIRROR_HALL.entryPosition
+  if (zone === 'mirror-hall') return MIRROR_HALL.showroomApproachPosition
+  if (zone === 'connection-bridge') return CONNECTION_BRIDGE.entryPosition
+  if (zone === 'responsibility-warehouse') {
+    return RESPONSIBILITY_WAREHOUSE.entryPosition
+  }
+  return { x: 0, y: 1, z: 5 }
+}
+
 function Player({
   reducedMotion,
   cameraSensitivity,
+  movementSpeed,
   zone,
   onNpcProximityChange,
   onMirrorHallPresenceChange,
+  onNavigationSample,
 }: Pick<
   GameCanvasProps,
   | 'reducedMotion'
   | 'cameraSensitivity'
+  | 'movementSpeed'
   | 'zone'
   | 'onNpcProximityChange'
   | 'onMirrorHallPresenceChange'
+  | 'onNavigationSample'
 >) {
   const body = useRef<RapierRigidBody>(null)
   const avatar = useRef<Group>(null)
@@ -67,12 +92,15 @@ function Player({
   const cameraSnapRequested = useRef(false)
   const cameraPosition = useMemo(() => new Vector3(), [])
   const cameraTarget = useMemo(() => new Vector3(), [])
+  const cameraRayDirection = useMemo(() => new Vector3(), [])
   const cameraYaw = useRef(DEFAULT_CAMERA_YAW)
   const cameraPitch = useRef(DEFAULT_CAMERA_PITCH)
   const draggingPointer = useRef<number | null>(null)
   const lastPointerPosition = useRef({ x: 0, y: 0 })
+  const lastNavigationSampleAt = useRef(0)
   const [, getControls] = useKeyboardControls<GameControl>()
   const { gl } = useThree()
+  const { rapier, world } = useRapier()
 
   useEffect(() => {
     const canvas = gl.domElement
@@ -119,16 +147,8 @@ function Player({
   }, [cameraSensitivity, gl, reducedMotion])
 
   useEffect(() => {
-    if (zone === 'mirror-hall') return
     insideMirrorHall.current = false
-    body.current?.setTranslation(
-      zone === 'connection-bridge'
-        ? CONNECTION_BRIDGE.entryPosition
-        : zone === 'responsibility-warehouse'
-        ? RESPONSIBILITY_WAREHOUSE.entryPosition
-        : { x: 0, y: 1, z: 5 },
-      true,
-    )
+    body.current?.setTranslation(getSafePlayerPosition(zone, false), true)
     cameraSnapRequested.current = true
     onMirrorHallPresenceChange(false)
   }, [onMirrorHallPresenceChange, zone])
@@ -168,15 +188,19 @@ function Player({
       localMovement,
       cameraYaw.current,
     )
-    const length = Math.hypot(directionX, directionZ) || 1
     const velocity = rigidBody.linvel()
-    const speed = 3.6
+    const horizontalVelocity = advanceHorizontalVelocity(
+      { x: velocity.x, z: velocity.z },
+      { x: directionX, z: directionZ },
+      delta,
+      movementSpeed,
+    )
 
     rigidBody.setLinvel(
       {
-        x: (directionX / length) * speed,
+        x: horizontalVelocity.x,
         y: velocity.y,
-        z: (directionZ / length) * speed,
+        z: horizontalVelocity.z,
       },
       true,
     )
@@ -226,13 +250,7 @@ function Player({
 
     if (position.y < -4) {
       rigidBody.setTranslation(
-        insideMirrorHall.current
-          ? MIRROR_HALL.entryPosition
-          : zone === 'connection-bridge'
-            ? CONNECTION_BRIDGE.entryPosition
-            : zone === 'responsibility-warehouse'
-            ? RESPONSIBILITY_WAREHOUSE.entryPosition
-            : { x: 0, y: 1, z: 5 },
+        getSafePlayerPosition(zone, insideMirrorHall.current),
         true,
       )
       cameraSnapRequested.current = true
@@ -250,6 +268,27 @@ function Player({
       position.y + cameraHeight + cameraPitch.current,
       position.z + Math.cos(cameraYaw.current) * cameraDistance,
     )
+    cameraTarget.set(position.x, position.y + 0.65, position.z)
+    cameraRayDirection.copy(cameraPosition).sub(cameraTarget)
+    const desiredCameraDistance = cameraRayDirection.length()
+    cameraRayDirection.normalize()
+    const cameraHit = world.castRay(
+      new rapier.Ray(cameraTarget, cameraRayDirection),
+      desiredCameraDistance,
+      true,
+      undefined,
+      undefined,
+      undefined,
+      rigidBody,
+    )
+    const cameraObstructed =
+      cameraHit !== null && cameraHit.timeOfImpact < desiredCameraDistance
+    if (cameraObstructed && cameraHit) {
+      const safeDistance = Math.max(1.1, cameraHit.timeOfImpact - 0.3)
+      cameraPosition
+        .copy(cameraTarget)
+        .addScaledVector(cameraRayDirection, safeDistance)
+    }
     if (
       cameraZone.current !== zone ||
       cameraSnapRequested.current ||
@@ -261,8 +300,19 @@ function Player({
     } else {
       camera.position.lerp(cameraPosition, 1 - Math.exp(-5 * delta))
     }
-    cameraTarget.set(position.x, position.y + 0.65, position.z)
     camera.lookAt(cameraTarget)
+
+    if (
+      onNavigationSample &&
+      clock.elapsedTime - lastNavigationSampleAt.current >= 0.15
+    ) {
+      lastNavigationSampleAt.current = clock.elapsedTime
+      onNavigationSample({
+        position: { x: position.x, y: position.y, z: position.z },
+        cameraDistance: cameraPosition.distanceTo(cameraTarget),
+        cameraObstructed,
+      })
+    }
   })
 
   return (
@@ -272,7 +322,7 @@ function Player({
       colliders={false}
       enabledRotations={[false, false, false]}
       canSleep={false}
-      linearDamping={5}
+      linearDamping={0}
     >
       <CuboidCollider args={[0.34, 0.72, 0.34]} />
       <group ref={avatar} castShadow>
@@ -325,8 +375,30 @@ function Nor({ reducedMotion }: { reducedMotion: boolean }) {
 }
 
 function ProgressionGate({ unlocked }: { unlocked: boolean }) {
+  const pillarOuterEdge = 1.98
+  const sideBarrierHalfWidth = (SHOWROOM_HALF_SIZE - pillarOuterEdge) / 2
+  const sideBarrierCenter = pillarOuterEdge + sideBarrierHalfWidth
+
   return (
     <group position={[0, 0, PROGRESSION_PORTAL.z]}>
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider args={[0.38, 1.35, 0.4]} position={[-1.6, 1.35, 0]} />
+        <CuboidCollider args={[0.38, 1.35, 0.4]} position={[1.6, 1.35, 0]} />
+        <CuboidCollider
+          args={[sideBarrierHalfWidth, 1.4, 0.2]}
+          position={[-sideBarrierCenter, 1.4, 0]}
+        />
+        <CuboidCollider
+          args={[sideBarrierHalfWidth, 1.4, 0.2]}
+          position={[sideBarrierCenter, 1.4, 0]}
+        />
+      </RigidBody>
+      {[-sideBarrierCenter, sideBarrierCenter].map((x) => (
+        <mesh key={x} castShadow receiveShadow position={[x, 1.4, 0]}>
+          <boxGeometry args={[sideBarrierHalfWidth * 2, 2.8, 0.4]} />
+          <meshStandardMaterial color="#00464d" roughness={0.88} />
+        </mesh>
+      ))}
       <mesh castShadow position={[-1.6, 1.35, 0]}>
         <boxGeometry args={[0.75, 2.7, 0.8]} />
         <meshStandardMaterial color="#723e33" roughness={0.82} />
@@ -701,9 +773,11 @@ function ConnectionBridge() {
 function World({
   reducedMotion,
   cameraSensitivity,
+  movementSpeed,
   zone,
   onNpcProximityChange,
   onMirrorHallPresenceChange,
+  onNavigationSample,
 }: GameCanvasProps) {
   const isMirrorHall = zone === 'mirror-hall'
   const isResponsibilityWarehouse = zone === 'responsibility-warehouse'
@@ -723,10 +797,22 @@ function World({
 
       <RigidBody type="fixed" colliders={false}>
         <CuboidCollider args={[SHOWROOM_HALF_SIZE, 0.1, SHOWROOM_HALF_SIZE]} position={[0, -0.1, 0]} />
-        <CuboidCollider args={[SHOWROOM_HALF_SIZE, 1.4, 0.2]} position={[0, 1.2, -SHOWROOM_HALF_SIZE]} />
-        <CuboidCollider args={[SHOWROOM_HALF_SIZE, 1.4, 0.2]} position={[0, 1.2, SHOWROOM_HALF_SIZE]} />
-        <CuboidCollider args={[0.2, 1.4, SHOWROOM_HALF_SIZE]} position={[-SHOWROOM_HALF_SIZE, 1.2, 0]} />
-        <CuboidCollider args={[0.2, 1.4, SHOWROOM_HALF_SIZE]} position={[SHOWROOM_HALF_SIZE, 1.2, 0]} />
+        <CuboidCollider
+          args={[SHOWROOM_HALF_SIZE, SHOWROOM_WALL_HALF_HEIGHT, 0.2]}
+          position={[0, SHOWROOM_WALL_HALF_HEIGHT, -SHOWROOM_HALF_SIZE]}
+        />
+        <CuboidCollider
+          args={[SHOWROOM_HALF_SIZE, SHOWROOM_WALL_HALF_HEIGHT, 0.2]}
+          position={[0, SHOWROOM_WALL_HALF_HEIGHT, SHOWROOM_HALF_SIZE]}
+        />
+        <CuboidCollider
+          args={[0.2, SHOWROOM_WALL_HALF_HEIGHT, SHOWROOM_HALF_SIZE]}
+          position={[-SHOWROOM_HALF_SIZE, SHOWROOM_WALL_HALF_HEIGHT, 0]}
+        />
+        <CuboidCollider
+          args={[0.2, SHOWROOM_WALL_HALF_HEIGHT, SHOWROOM_HALF_SIZE]}
+          position={[SHOWROOM_HALF_SIZE, SHOWROOM_WALL_HALF_HEIGHT, 0]}
+        />
         <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[SHOWROOM_HALF_SIZE * 2, SHOWROOM_HALF_SIZE * 2]} />
           <meshStandardMaterial color="#015945" roughness={0.94} />
@@ -734,7 +820,13 @@ function World({
       </RigidBody>
 
       {[-7, -3.5, 3.5, 7].map((x, index) => (
-        <group key={x} position={[x, 0, index % 2 ? -5.5 : 3.8]}>
+        <RigidBody
+          key={x}
+          type="fixed"
+          colliders={false}
+          position={[x, 0, index % 2 ? -5.5 : 3.8]}
+        >
+          <CuboidCollider args={[0.5, 0.7, 0.5]} position={[0, 0.7, 0]} />
           <mesh castShadow position={[0, 0.65, 0]}>
             <cylinderGeometry args={[0.4, 0.62, 1.3, 7]} />
             <meshStandardMaterial color="#723e33" roughness={0.9} />
@@ -743,7 +835,7 @@ function World({
             <coneGeometry args={[1.35, 2.5, 7]} />
             <meshStandardMaterial color={index % 2 ? '#247360' : '#02a67f'} roughness={0.88} />
           </mesh>
-        </group>
+        </RigidBody>
       ))}
 
       <ProgressionGate unlocked={isMirrorHall} />
@@ -751,13 +843,18 @@ function World({
       {isResponsibilityWarehouse && <ResponsibilityWarehouse />}
       {isConnectionBridge && <ConnectionBridge />}
 
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider args={[0.48, 0.8, 0.48]} position={NPC_POSITION.toArray()} />
+      </RigidBody>
       <Nor reducedMotion={reducedMotion} />
       <Player
         reducedMotion={reducedMotion}
         cameraSensitivity={cameraSensitivity}
+        movementSpeed={movementSpeed}
         zone={zone}
         onNpcProximityChange={onNpcProximityChange}
         onMirrorHallPresenceChange={onMirrorHallPresenceChange}
+        onNavigationSample={onNavigationSample}
       />
     </>
   )

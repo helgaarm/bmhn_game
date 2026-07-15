@@ -2,6 +2,10 @@
 
 ## Unreleased - Phase 2 foundation and campaign start
 
+- Started Phase 3 core systems with configurable movement speed, frame-rate-independent acceleration/deceleration and normalised diagonal movement.
+- Added ray-based camera collision, taller showroom world boundaries and local navigation diagnostics for player position and camera obstruction.
+- Added physical colliders for showroom trees, Nor, gate pillars and continuous gate side barriers so the locked portal can no longer be bypassed.
+- Added a real-scene Playwright collision test that verifies movement and physical stopping at the locked gate and showroom wall.
 - Moved the in-world Nor dialogue from the bottom edge to a centred upper viewport position, keeping blur, hover, focus and keyboard controls intact.
 - Added mouse-drag and keyboard-controlled third-person camera rotation, camera-relative movement, adjustable sensitivity, reset control and reduced-movement behaviour without changing the existing movement keys.
 - Added pure camera transform tests and Playwright coverage that exercises the controls in Visningshallen, Speilsalen and Ansvarslageret.

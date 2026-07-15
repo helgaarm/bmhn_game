@@ -6,6 +6,7 @@
 - The asset-loader contract is tested but unused because no external runtime asset has passed the licence/provenance gate.
 - Progress is persisted only in the current browser. Unknown save/content versions are deliberately preserved but cannot resume until a reviewed migration is added or the player explicitly resets them.
 - Gamepad controls, key remapping, touch movement and touch-specific camera affordances are deferred. Mouse drag, keyboard camera rotation, sensitivity and reduced movement are implemented.
+- Phase 3 camera collision currently uses a single ray. Swept camera volume, slope/step handling and full collision coverage for all rooms and obstacle classes remain open.
 - The 2D alternative covers the complete learning path; the 3D canvas itself is not expected to expose scene geometry meaningfully to a screen reader.
 - Gate C has a production-build capture harness and evaluator, but reference hardware, browser version, thresholds and approval are still unset; formal approval remains pending.
 - First-frame and FPS diagnostics are local estimates. The memory value is Chromium-specific, headless captures are measurement-only, and none of these readings are a formal baseline yet.

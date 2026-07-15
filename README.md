@@ -43,6 +43,7 @@ npm run test:gate-c
 
 See [Phase 1 decisions](docs/architecture/phase-1-decisions.md) and the [vertical-slice brief](docs/vertical-slice.md).
 Phase 2 scope and evidence are tracked in the [Phase 2 foundation report](docs/phase-2-foundation.md), [Phase 2 decisions](docs/architecture/phase-2-decisions.md), [save/resume contract](docs/save-resume.md), [Gate C protocol](docs/performance-gate-c.md), and [multiplayer readiness gate](docs/multiplayer-readiness.md).
+Phase 3 has started with configurable accelerated movement, player/world collision, camera obstruction handling and real-scene collision tests. Scope and remaining acceptance work are tracked in the [Phase 3 core-systems report](docs/phase-3-core-systems.md).
 
 ## Branding
 

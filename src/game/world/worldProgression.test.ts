@@ -5,6 +5,7 @@ import {
   PROGRESSION_PORTAL,
   RESPONSIBILITY_WAREHOUSE,
   SHOWROOM_HALF_SIZE,
+  SHOWROOM_WALL_HALF_HEIGHT,
   THIRD_PERSON_CAMERA_OFFSET_Z,
 } from './worldProgression'
 
@@ -52,6 +53,19 @@ describe('world progression portal', () => {
       MIRROR_HALL.halfWidth * 2 * MIRROR_HALL.halfDepth * 2
 
     expect(mirrorHallArea).toBeGreaterThan(showroomArea)
+  })
+
+  it('keeps the showroom boundary above the maximum configured camera height', () => {
+    expect(SHOWROOM_WALL_HALF_HEIGHT * 2).toBeGreaterThan(5.2)
+  })
+
+  it('places the player safely in front of the mirror-hall portal when it unlocks', () => {
+    expect(MIRROR_HALL.showroomApproachPosition.z).toBeGreaterThan(
+      PROGRESSION_PORTAL.entryThresholdZ,
+    )
+    expect(Math.abs(MIRROR_HALL.showroomApproachPosition.x)).toBeLessThanOrEqual(
+      PROGRESSION_PORTAL.halfWidth,
+    )
   })
 
   it('places the responsibility warehouse entry inside its enclosed footprint', () => {
