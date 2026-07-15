@@ -36,6 +36,10 @@ npm run test:e2e
 
 See [Phase 1 decisions](docs/architecture/phase-1-decisions.md) and the [vertical-slice brief](docs/vertical-slice.md).
 
+## Branding
+
+The interface follows the published [Norsk helsenett digital profile guide](https://brandpad.io/norsk-helsenett/): the verified green palette, supporting yellow/orange accents, Arial system typography, upper-left brand placement, and an original connection motif. No downloadable logo, illustration, icon pack, or licensed Helvetica Now font is bundled. See the [brand implementation record](docs/brand-system.md).
+
 ## Public repository policy
 
 Only reviewed, anonymized, non-sensitive material may be committed. Internal source reports, personal contact information, operational findings, credentials, and real citizen data must remain outside this public repository. The repository ignore rules enforce the current source-document boundary.

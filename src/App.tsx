@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { Link, Route, Routes } from 'react-router-dom'
+import { BrandLockup } from './components/BrandLockup'
 
 const GamePage = lazy(() => import('./game/GamePage'))
 
@@ -15,13 +16,24 @@ function LoadingScreen() {
 function HomePage() {
   return (
     <main className="home-page">
-      <div className="home-page__glow" aria-hidden="true" />
+      <header className="home-header">
+        <Link to="/" aria-label="Norsk helsenett - Bygg med Helsenorge">
+          <BrandLockup />
+        </Link>
+        <span className="home-header__descriptor">Kooperativ læringsopplevelse</span>
+      </header>
+      <div className="home-page__connections" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+        <span />
+      </div>
       <section className="hero" aria-labelledby="hero-title">
         <p className="eyebrow">Teknisk vertikalsnitt · fase 1</p>
         <h1 id="hero-title">Bygg med Helsenorge</h1>
         <p className="hero__lead">
-          En original, samarbeidende fantasiverden der behov, roller og
-          avhengigheter blir synlige før laget velger vei videre.
+          En varm, tydelig fantasiverden der behov, roller og avhengigheter
+          knyttes sammen før laget velger vei videre.
         </p>
         <div className="hero__actions">
           <Link className="button button--primary" to="/game">

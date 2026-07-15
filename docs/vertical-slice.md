@@ -39,9 +39,9 @@ Phase 1 has no pre-existing domain service to reuse. `src/game/adapters/needRead
 Measured production bundle baseline on 2026-07-15:
 
 - HTML: 0.59 kB minified / 0.35 kB gzip.
-- Shared shell JavaScript: 234.88 kB / 75.37 kB gzip.
-- Styles: 12.09 kB / 3.48 kB gzip.
-- Lazy game route: 3,159.32 kB / 1,090.03 kB gzip.
+- Shared shell JavaScript: 235.95 kB / 75.72 kB gzip.
+- Styles: 14.10 kB / 3.78 kB gzip.
+- Lazy game route: 3,159.28 kB / 1,090.02 kB gzip.
 
 The route boundary succeeds, but the game chunk exceeds the default Vite warning threshold and remains an explicit optimisation target.
 

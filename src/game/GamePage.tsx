@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { BrandLockup } from '../components/BrandLockup'
 import { GameCanvas } from './components/GameCanvas'
 import { GameErrorBoundary } from './components/GameErrorBoundary'
 import {
@@ -116,9 +117,12 @@ export default function GamePage() {
       className={`game-page${highContrast ? ' game-page--high-contrast' : ''}`}
     >
       <header className="game-header">
-        <Link className="game-header__brand" to="/">
-          <span aria-hidden="true">◇</span>
-          Bygg med Helsenorge
+        <Link
+          className="game-header__brand"
+          to="/"
+          aria-label="Norsk helsenett - Bygg med Helsenorge"
+        >
+          <BrandLockup />
         </Link>
         <div className="game-header__tools">
           <span className="phase-badge">{verticalSlice.level}</span>

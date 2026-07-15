@@ -91,15 +91,15 @@ function Player({
       <group ref={avatar} castShadow>
         <mesh castShadow position={[0, 0.13, 0]}>
           <capsuleGeometry args={[0.34, 0.62, 5, 8]} />
-          <meshStandardMaterial color="#d09b52" roughness={0.75} />
+          <meshStandardMaterial color="#e85800" roughness={0.75} />
         </mesh>
         <mesh castShadow position={[0, 0.82, 0]}>
           <sphereGeometry args={[0.29, 12, 8]} />
-          <meshStandardMaterial color="#f0c98e" roughness={0.8} />
+          <meshStandardMaterial color="#fbd9a5" roughness={0.8} />
         </mesh>
         <mesh castShadow position={[0, 1.18, 0]} rotation={[0, 0, 0.08]}>
           <coneGeometry args={[0.43, 0.78, 8]} />
-          <meshStandardMaterial color="#2c6d68" roughness={0.72} />
+          <meshStandardMaterial color="#247360" roughness={0.72} />
         </mesh>
       </group>
     </RigidBody>
@@ -118,21 +118,21 @@ function Nor({ reducedMotion }: { reducedMotion: boolean }) {
     <group ref={group} position={NPC_POSITION.toArray()}>
       <mesh castShadow>
         <cylinderGeometry args={[0.42, 0.55, 1.4, 8]} />
-        <meshStandardMaterial color="#193f54" roughness={0.65} />
+        <meshStandardMaterial color="#00467a" roughness={0.65} />
       </mesh>
       <mesh castShadow position={[0, 0.92, 0]}>
         <dodecahedronGeometry args={[0.38, 0]} />
-        <meshStandardMaterial color="#e5b85e" roughness={0.58} />
+        <meshStandardMaterial color="#ffc46b" roughness={0.58} />
       </mesh>
       <mesh position={[0, 1.58, 0]}>
         <torusGeometry args={[0.34, 0.055, 8, 20]} />
         <meshStandardMaterial
-          color="#9df3d5"
-          emissive="#4ccba3"
+          color="#7befb2"
+          emissive="#02a67f"
           emissiveIntensity={1.7}
         />
       </mesh>
-      <pointLight color="#9df3d5" intensity={2.2} distance={5} position={[0, 1.3, 0]} />
+      <pointLight color="#7befb2" intensity={2.2} distance={5} position={[0, 1.3, 0]} />
     </group>
   )
 }
@@ -140,12 +140,12 @@ function Nor({ reducedMotion }: { reducedMotion: boolean }) {
 function World({ reducedMotion, onNpcProximityChange }: GameCanvasProps) {
   return (
     <>
-      <color attach="background" args={['#0d2527']} />
-      <fog attach="fog" args={['#0d2527', 10, 27]} />
-      <hemisphereLight args={['#b8f2e2', '#172018', 1.5]} />
+      <color attach="background" args={['#002920']} />
+      <fog attach="fog" args={['#002920', 10, 27]} />
+      <hemisphereLight args={['#c4f2da', '#002920', 1.5]} />
       <directionalLight
         castShadow
-        color="#ffd28c"
+        color="#ffc46b"
         intensity={2.6}
         position={[6, 10, 5]}
         shadow-mapSize={[1024, 1024]}
@@ -159,7 +159,7 @@ function World({ reducedMotion, onNpcProximityChange }: GameCanvasProps) {
         <CuboidCollider args={[0.2, 1.4, 10]} position={[10, 1.2, 0]} />
         <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[20, 20]} />
-          <meshStandardMaterial color="#294b3e" roughness={0.94} />
+          <meshStandardMaterial color="#015945" roughness={0.94} />
         </mesh>
       </RigidBody>
 
@@ -167,11 +167,11 @@ function World({ reducedMotion, onNpcProximityChange }: GameCanvasProps) {
         <group key={x} position={[x, 0, index % 2 ? -5.5 : 3.8]}>
           <mesh castShadow position={[0, 0.65, 0]}>
             <cylinderGeometry args={[0.4, 0.62, 1.3, 7]} />
-            <meshStandardMaterial color="#6b4b35" roughness={0.9} />
+            <meshStandardMaterial color="#723e33" roughness={0.9} />
           </mesh>
           <mesh castShadow position={[0, 1.8, 0]}>
             <coneGeometry args={[1.35, 2.5, 7]} />
-            <meshStandardMaterial color={index % 2 ? '#3b7660' : '#477f61'} roughness={0.88} />
+            <meshStandardMaterial color={index % 2 ? '#247360' : '#02a67f'} roughness={0.88} />
           </mesh>
         </group>
       ))}
@@ -179,21 +179,21 @@ function World({ reducedMotion, onNpcProximityChange }: GameCanvasProps) {
       <group position={[0, 0, -4.1]}>
         <mesh castShadow position={[-1.6, 1.25, 0]}>
           <boxGeometry args={[0.75, 2.5, 0.7]} />
-          <meshStandardMaterial color="#7c674e" roughness={0.82} />
+          <meshStandardMaterial color="#723e33" roughness={0.82} />
         </mesh>
         <mesh castShadow position={[1.6, 1.25, 0]}>
           <boxGeometry args={[0.75, 2.5, 0.7]} />
-          <meshStandardMaterial color="#7c674e" roughness={0.82} />
+          <meshStandardMaterial color="#723e33" roughness={0.82} />
         </mesh>
         <mesh castShadow position={[0, 2.45, 0]}>
           <boxGeometry args={[4, 0.52, 0.72]} />
-          <meshStandardMaterial color="#7c674e" roughness={0.82} />
+          <meshStandardMaterial color="#723e33" roughness={0.82} />
         </mesh>
         <mesh position={[0, 1.15, 0]}>
           <torusGeometry args={[1.05, 0.1, 10, 24, Math.PI]} />
           <meshStandardMaterial
-            color="#70e1bd"
-            emissive="#368f77"
+            color="#7befb2"
+            emissive="#02a67f"
             emissiveIntensity={1.2}
           />
         </mesh>

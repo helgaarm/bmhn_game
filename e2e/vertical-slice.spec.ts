@@ -7,15 +7,23 @@ test('completes the accessible Phase 1 vertical slice', async ({ page }, testInf
     page.getByRole('heading', { name: 'Bygg med Helsenorge' }),
   ).toBeVisible()
 
+  if (process.env.VISUAL_REVIEW === '1') {
+    await page.screenshot({
+      path: testInfo.outputPath('nhn-branded-home.png'),
+      fullPage: true,
+    })
+  }
+
   await page.getByRole('link', { name: 'Gå inn i visningshallen' }).click()
   await expect(
     page.getByRole('heading', { name: 'Visningshallen', exact: true }),
   ).toBeVisible()
 
   if (process.env.VISUAL_REVIEW === '1') {
+    await page.waitForTimeout(1800)
     await page.screenshot({
-      path: testInfo.outputPath('phase-1-game.png'),
-      fullPage: true,
+      path: testInfo.outputPath('nhn-branded-game.png'),
+      fullPage: false,
     })
   }
 
