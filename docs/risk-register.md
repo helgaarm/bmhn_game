@@ -34,7 +34,7 @@
 
 ### Campaign breadth is mistaken for playable depth - high impact, medium likelihood
 
-- Signal: the nine-stage dashboard is presented as a complete campaign even though stages 2–9 have no playable content.
+- Signal: the nine-stage dashboard is presented as a complete campaign even though stages 3–9 have no playable content.
 - Control: explicit unavailable states, Phase 2 foundation report, release notes, and one-stage-at-a-time acceptance.
 - Owner: product and learning design.
 

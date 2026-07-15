@@ -16,6 +16,7 @@ import {
 
 interface GameCanvasProps {
   reducedMotion: boolean
+  zone: 'showroom' | 'mirror-hall'
   onNpcProximityChange: (isNear: boolean) => void
   onFirstFrame?: () => void
   onFpsSample?: (fps: number) => void
@@ -143,11 +144,12 @@ function Nor({ reducedMotion }: { reducedMotion: boolean }) {
   )
 }
 
-function World({ reducedMotion, onNpcProximityChange }: GameCanvasProps) {
+function World({ reducedMotion, zone, onNpcProximityChange }: GameCanvasProps) {
+  const isMirrorHall = zone === 'mirror-hall'
   return (
     <>
-      <color attach="background" args={['#002920']} />
-      <fog attach="fog" args={['#002920', 10, 27]} />
+      <color attach="background" args={[isMirrorHall ? '#002e38' : '#002920']} />
+      <fog attach="fog" args={[isMirrorHall ? '#002e38' : '#002920', 10, 27]} />
       <hemisphereLight args={['#c4f2da', '#002920', 1.5]} />
       <directionalLight
         castShadow
@@ -178,6 +180,25 @@ function World({ reducedMotion, onNpcProximityChange }: GameCanvasProps) {
           <mesh castShadow position={[0, 1.8, 0]}>
             <coneGeometry args={[1.35, 2.5, 7]} />
             <meshStandardMaterial color={index % 2 ? '#247360' : '#02a67f'} roughness={0.88} />
+          </mesh>
+        </group>
+      ))}
+
+      {isMirrorHall && [-6, -2, 2, 6].map((x, index) => (
+        <group key={`actor-mirror-${x}`} position={[x, 1.45, -7.2]}>
+          <mesh castShadow>
+            <boxGeometry args={[2.1, 2.9, 0.18]} />
+            <meshStandardMaterial
+              color={index % 2 ? '#c4f2da' : '#7befb2'}
+              emissive="#02a67f"
+              emissiveIntensity={0.12}
+              metalness={0.72}
+              roughness={0.24}
+            />
+          </mesh>
+          <mesh position={[0, -1.72, 0.25]} castShadow>
+            <cylinderGeometry args={[0.72, 0.92, 0.55, 7]} />
+            <meshStandardMaterial color="#247360" roughness={0.84} />
           </mesh>
         </group>
       ))}

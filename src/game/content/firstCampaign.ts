@@ -2,7 +2,7 @@ import type { CampaignDefinition } from './campaignSchema'
 
 export const firstCampaign: CampaignDefinition = {
   id: 'fjordglimt-first-journey',
-  version: 1,
+  version: 2,
   contentProfile: 'public',
   title: 'Fjordglimt: Fra behov til trygg avslutning',
   summary:

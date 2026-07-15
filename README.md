@@ -4,7 +4,7 @@ An original browser-based 3D fantasy learning experience built around the nine-s
 
 Phase 1 is a single-player technical vertical slice. It provides a lazy-loaded game route, an original low-poly scene, third-person movement, one source-bounded guide, Casebuilder input, an explicit dependency gate, a decision consequence, and a complete accessible 2D path. Multiplayer is intentionally deferred.
 
-Phase 2 has started with a validated nine-stage campaign spine, campaign dashboard, decision journal, controlled scene readiness, remapping-ready input actions, a cancellable/fallback asset-loader contract, and opt-in local diagnostics. Only the first journey step is currently playable; the remaining stages are deliberately visible but unavailable.
+Phase 2 has started with a validated nine-stage campaign spine, campaign dashboard, decision journal, controlled scene readiness, remapping-ready input actions, a cancellable/fallback asset-loader contract, and opt-in local diagnostics. Discover and Understand and assess are playable; stages 3–9 remain deliberately visible but unavailable.
 
 ## Run locally
 

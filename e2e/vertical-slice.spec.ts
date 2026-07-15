@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
-test('completes the vertical slice and starts the Phase 2 campaign', async ({ page }, testInfo) => {
+test('completes Discover and Understand and assess', async ({ page }, testInfo) => {
+  test.setTimeout(90_000)
   await page.goto('/')
   await expect(
     page.getByRole('heading', { name: 'Bygg med Helsenorge' }),
@@ -54,9 +55,9 @@ test('completes the vertical slice and starts the Phase 2 campaign', async ({ pa
   await expect(
     page.getByRole('heading', { name: 'Porten til forståelse er åpen' }),
   ).toBeVisible()
-  await expect(page.getByText('Fullført', { exact: true })).toBeVisible()
+  await expect(page.getByText('Klar for neste steg', { exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Kampanje' }).click()
+  await page.getByRole('button', { name: 'Kampanje', exact: true }).click()
   const campaignDialog = page.getByRole('dialog', {
     name: 'Fjordglimt: Fra behov til trygg avslutning',
   })
@@ -80,6 +81,75 @@ test('completes the vertical slice and starts the Phase 2 campaign', async ({ pa
     }),
   ).toBeVisible()
   await campaignDialog.getByRole('button', { name: 'Lukk' }).click()
+
+  await page.getByRole('button', { name: 'Fortsett til Speilsalen' }).click()
+  await expect(page.getByRole('heading', { name: 'Speilsalen', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Fortsett' }).click()
+  await page.getByRole('button', { name: 'Fortsett' }).click()
+  await page.getByRole('button', { name: 'Åpne aktørkartet' }).click()
+
+  if (process.env.VISUAL_REVIEW === '1') {
+    await page.screenshot({
+      path: testInfo.outputPath('phase-2-speilsalen.png'),
+      fullPage: false,
+    })
+    await page.locator('.actor-map').screenshot({
+      path: testInfo.outputPath('phase-2-actor-map.png'),
+    })
+  }
+
+  const actorMapResults = await new AxeBuilder({ page })
+    .include('.actor-map')
+    .analyze()
+  expect(actorMapResults.violations).toEqual([])
+
+  await page.getByRole('button', { name: 'Prøv usikkerhetsporten' }).click()
+  await expect(page.getByText('Velg minst 3 berørte aktører')).toBeVisible()
+
+  await page.getByRole('checkbox', { name: /^Behandler/ }).check()
+  await page.getByRole('checkbox', { name: /^Tjenesteeier/ }).check()
+  await page.getByLabel(
+    'Hvilken verdi forventer laget dersom behovet blir bedre forstått?',
+  ).fill('Innbyggeren kan møte bedre forberedt og forstå hva som skal skje.')
+  await page.getByLabel(
+    'Hvilken viktig usikkerhet må undersøkes videre?',
+  ).fill('Laget vet ennå ikke hvilke grupper som trenger en alternativ støttevei.')
+  await page.getByRole('button', { name: 'Prøv usikkerhetsporten' }).click()
+
+  await page.getByRole('button', {
+    name: 'Fjern usikkerheten fra vurderingen og bestill nå',
+  }).click()
+  await expect(page.getByText(/Usikkerheten forsvinner ikke/)).toBeVisible()
+
+  await page.getByRole('button', {
+    name: 'Gå videre med åpne spørsmål synlig og gi noen ansvar for å undersøke dem',
+  }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Speilsalens port er åpen' }),
+  ).toBeVisible()
+
+  await page.getByRole('button', { name: 'Se evidens og neste steg' }).click()
+  await expect(campaignDialog.getByText('2 av 9 steg fullført')).toBeVisible()
+  await expect(
+    campaignDialog.getByRole('button', { name: /Avklare og bestille.*Aktiv/ }),
+  ).toBeVisible()
+  await campaignDialog.getByRole('button', { name: /Forstå og vurdere.*Fullført/ }).click()
+  await expect(campaignDialog.getByText(/Aktørbilde: Innbygger, Behandler, Tjenesteeier/)).toBeVisible()
+  await expect(campaignDialog.getByText(/Åpen usikkerhet: Laget vet ennå ikke/)).toBeVisible()
+
+  if (process.env.VISUAL_REVIEW === '1') {
+    await page.screenshot({
+      path: testInfo.outputPath('phase-2-understand-assess-complete.png'),
+      fullPage: false,
+    })
+  }
+
+  await campaignDialog.getByRole('tab', { name: /Beslutningsjournal \(2\)/ }).click()
+  await expect(
+    campaignDialog.getByRole('heading', {
+      name: 'Gå videre med åpne spørsmål synlig og gi noen ansvar for å undersøke dem',
+    }),
+  ).toBeVisible()
 })
 
 test('unknown routes have a recovery path', async ({ page }) => {
@@ -93,6 +163,7 @@ test('unknown routes have a recovery path', async ({ page }) => {
 test('landing and game entry have no automatically detectable accessibility violations', async ({
   page,
 }) => {
+  test.setTimeout(90_000)
   await page.goto('/')
   const landingResults = await new AxeBuilder({ page }).analyze()
   expect(landingResults.violations).toEqual([])

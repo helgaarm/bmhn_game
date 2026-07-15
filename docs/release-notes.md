@@ -5,12 +5,15 @@
 - Added a schema-validated public campaign spine across all nine actor-journey stages.
 - Added deterministic campaign progression with full status vocabulary and replay tests.
 - Connected Discover completion to campaign evidence, decision logging, and activation of Understand and assess.
+- Added a playable Understand and assess quest with source-bounded Nor dialogue, synthetic actor mapping, expected-value and uncertainty evidence, failed choices, and an explicit gate.
+- Added a procedural Speilsalen state to the existing 3D world without external assets.
+- Connected successful assessment to three evidence records, a second journal decision, and activation of Clarify and order.
 - Added an accessible campaign dashboard with progress, stage criteria, gates, and a decision journal.
 - Added remapping-ready named input actions.
 - Added a tested binary asset-loader contract with progress, cancellation, fallback, and structured diagnostics; no external asset was introduced.
 - Added controlled scene readiness plus opt-in local first-frame, FPS, and optional memory diagnostics without telemetry.
-- Extended Playwright/Axe coverage to campaign state, journal, direct navigation, refresh, diagnostics, and the campaign modal.
-- The full campaign is not complete; stages 2–9 remain unavailable for play.
+- Extended Playwright/Axe coverage to both playable stages, failed and successful gates, campaign evidence, journal, direct navigation, refresh, diagnostics, and the campaign modal.
+- The full campaign is not complete; stages 3–9 remain unavailable for play.
 
 ## Unreleased - Norsk helsenett brand alignment
 

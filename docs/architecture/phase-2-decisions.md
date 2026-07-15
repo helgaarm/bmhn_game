@@ -44,6 +44,14 @@ The source documents use two Phase 2 scopes. The implementation plan defines an 
 - Privacy: no telemetry, storage, network reporting, scenario payload, or player identifier.
 - Evidence boundary: readings support debugging but do not constitute a representative hardware baseline until reference devices and a measurement protocol are approved.
 
+## ADR-207 - Playable Understand and assess boundary
+
+- Decision: implement stage 2 as its own pure reducer and versioned content module rather than expanding the Discover quest machine.
+- Entry gate: the stage remains locked until Discover supplies its selected primary actor.
+- Evidence rule: at least three actors including the prior primary actor, a concrete expected-value statement, and one open uncertainty are required before the decision gate.
+- Learning boundary: the successful choice keeps uncertainty visible and assigns follow-up responsibility; it does not approve technology, integration, privacy, security, or production readiness.
+- Presentation: the existing lazy game route is reused with project-authored procedural Speilsalen geometry and a complete semantic path.
+
 ## Rollback
 
-Remove the campaign dashboard, campaign reducer/content modules, diagnostics callbacks, asset-loader module, and Zod development dependency. The Phase 1 route and quest reducer remain independently functional.
+Remove the campaign dashboard, campaign and assessment reducer/content modules, diagnostics callbacks, asset-loader module, and Zod development dependency. The Phase 1 route and Discover reducer remain independently functional.

@@ -37,13 +37,16 @@ export function CampaignDashboard({
 
   useEffect(() => {
     if (!open) return
+    setView('journey')
+    const currentStage = state.stages.find((stage) => stage.status === 'active')
+    if (currentStage) setSelectedStageId(currentStage.id)
     dialogRef.current?.focus()
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onClose, open])
+  }, [onClose, open, state.stages])
 
   if (!open) return null
 
@@ -165,6 +168,17 @@ export function CampaignDashboard({
                   <li key={evidence}>{evidence}</li>
                 ))}
               </ul>
+
+              {selectedState && selectedState.evidence.length > 0 && (
+                <>
+                  <h4>Registrert evidens</h4>
+                  <ul className="campaign-recorded-evidence">
+                    {selectedState.evidence.map((evidence) => (
+                      <li key={evidence}>{evidence}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
 
               <div className="campaign-gate-card">
                 <span>Avhengighetsport · {selectedStage.gate.kind}</span>

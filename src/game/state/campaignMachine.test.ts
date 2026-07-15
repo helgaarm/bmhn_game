@@ -53,6 +53,38 @@ describe('campaignMachine', () => {
     )
   })
 
+  it('records assessment evidence and activates Clarify and order', () => {
+    const afterDiscover = reducer(createCampaignState(firstCampaign), {
+      type: 'COMPLETE_STAGE',
+      stageId: 'discover',
+      evidence: ['Behovsbeskrivelse', 'Primær målgruppe'],
+      decision: discoverDecision,
+    })
+    const state = reducer(afterDiscover, {
+      type: 'COMPLETE_STAGE',
+      stageId: 'understand-assess',
+      evidence: [
+        'Aktørbilde: Innbygger, Behandler, Tjenesteeier',
+        'Forventet verdi: Et forståelig resultat',
+        'Åpen usikkerhet: Et spørsmål som må undersøkes',
+      ],
+      decision: {
+        id: 'understand-assess-carry-uncertainty',
+        stageId: 'understand-assess',
+        choice: 'Behold usikkerheten synlig',
+        rationale: 'Åpne spørsmål må undersøkes.',
+        role: 'Behovseier',
+        sourceId: 'strategy-journey',
+        consequence: 'Porten åpner seg.',
+      },
+    })
+
+    expect(state.stages[1].status).toBe('completed')
+    expect(state.stages[1].evidence).toHaveLength(3)
+    expect(state.stages[2].status).toBe('active')
+    expect(state.decisions).toHaveLength(2)
+  })
+
   it('replays a deterministic event sequence', () => {
     const events: CampaignEvent[] = [
       {

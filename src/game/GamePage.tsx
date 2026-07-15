@@ -4,18 +4,24 @@ import { BrandLockup } from '../components/BrandLockup'
 import { CampaignDashboard } from './components/CampaignDashboard'
 import { GameCanvas } from './components/GameCanvas'
 import { GameErrorBoundary } from './components/GameErrorBoundary'
+import { UnderstandAssessQuest } from './components/UnderstandAssessQuest'
 import {
   verticalSlice,
   type AudienceId,
   type DecisionId,
 } from './content/verticalSlice'
 import { firstCampaign } from './content/firstCampaign'
+import { understandAssess } from './content/understandAssess'
 import {
   createCampaignReducer,
   createCampaignState,
   type CampaignStageState,
 } from './state/campaignMachine'
 import { initialQuestState, questReducer } from './state/questMachine'
+import {
+  assessmentReducer,
+  initialAssessmentState,
+} from './state/assessmentMachine'
 import { matchesControlKey } from './input/controlMap'
 
 const campaignReducer = createCampaignReducer(firstCampaign)
@@ -88,6 +94,10 @@ function ThreeDFallback() {
 
 export default function GamePage() {
   const [quest, dispatch] = useReducer(questReducer, initialQuestState)
+  const [assessment, dispatchAssessment] = useReducer(
+    assessmentReducer,
+    initialAssessmentState,
+  )
   const [campaign, dispatchCampaign] = useReducer(
     campaignReducer,
     firstCampaign,
@@ -156,6 +166,36 @@ export default function GamePage() {
     })
   }, [quest])
 
+  useEffect(() => {
+    if (assessment.stage !== 'complete' || !assessment.selectedDecisionId) return
+    const decision = understandAssess.decisions.find(
+      (candidate) => candidate.id === assessment.selectedDecisionId,
+    )
+    if (!decision) return
+    const actorLabels = understandAssess.actors
+      .filter((actor) => assessment.selectedActorIds.includes(actor.id))
+      .map((actor) => actor.label)
+
+    dispatchCampaign({
+      type: 'COMPLETE_STAGE',
+      stageId: 'understand-assess',
+      evidence: [
+        `Aktørbilde: ${actorLabels.join(', ')}`,
+        `Forventet verdi: ${assessment.expectedValue}`,
+        `Åpen usikkerhet: ${assessment.uncertainty}`,
+      ],
+      decision: {
+        id: 'understand-assess-carry-uncertainty',
+        stageId: 'understand-assess',
+        choice: decision.label,
+        rationale: `${assessment.expectedValue} Åpen usikkerhet: ${assessment.uncertainty}`,
+        role: 'Behovseier',
+        sourceId: 'strategy-journey',
+        consequence: decision.consequence,
+      },
+    })
+  }, [assessment])
+
   const startDialogue = () => dispatch({ type: 'START_DIALOGUE' })
 
   const handleFirstFrame = () => {
@@ -179,13 +219,42 @@ export default function GamePage() {
     dispatch({ type: 'CHOOSE_DECISION', decisionId })
   }
 
+  const beginAssessment = () => {
+    if (!quest.audienceId) return
+    dispatchAssessment({ type: 'BEGIN', requiredActorId: quest.audienceId })
+    setAccessiblePath(true)
+  }
+
   const restart = () => {
     dispatch({ type: 'RESET' })
+    dispatchAssessment({ type: 'RESET' })
     dispatchCampaign({ type: 'RESET' })
     setNeedDescription('')
     setAudienceId(null)
     setAccessiblePath(false)
   }
+
+  const assessmentActive = assessment.stage !== 'locked'
+  const activeContent = assessmentActive ? understandAssess : verticalSlice
+  const activeWorldTitle = assessmentActive ? 'Speilsalen' : 'Visningshallen'
+
+  const questStatus = assessmentActive
+    ? assessment.stage === 'complete'
+      ? 'Fullført'
+      : assessment.stage === 'gate'
+        ? 'Usikkerhetsport'
+        : assessment.stage === 'actor-map'
+          ? 'Aktørkart'
+          : 'Samtale med Nor'
+    : quest.stage === 'complete'
+      ? 'Klar for neste steg'
+      : quest.stage === 'decision'
+        ? 'Avhengighetsport'
+        : quest.stage === 'casebuilder'
+          ? 'Casebuilder'
+          : quest.stage === 'dialogue'
+            ? 'Samtale med Nor'
+            : 'Finn Nor'
 
   return (
     <main
@@ -200,7 +269,7 @@ export default function GamePage() {
           <BrandLockup />
         </Link>
         <div className="game-header__tools">
-          <span className="phase-badge">{verticalSlice.level}</span>
+          <span className="phase-badge">{activeContent.level}</span>
           <button
             className="button button--compact button--secondary"
             type="button"
@@ -269,8 +338,8 @@ export default function GamePage() {
         <section className="world-shell" aria-labelledby="world-title">
           <div className="world-shell__heading">
             <div>
-              <p className="eyebrow">{verticalSlice.title}</p>
-              <h1 id="world-title">Visningshallen</h1>
+              <p className="eyebrow">{activeContent.title}</p>
+              <h1 id="world-title">{activeWorldTitle}</h1>
             </div>
             <p className="control-hint">
               <kbd>WASD</kbd> / piltaster for å bevege deg
@@ -288,6 +357,7 @@ export default function GamePage() {
             >
               <GameCanvas
                 reducedMotion={reducedMotion}
+                zone={assessmentActive ? 'mirror-hall' : 'showroom'}
                 onNpcProximityChange={setNearNpc}
                 onFirstFrame={handleFirstFrame}
                 onFpsSample={diagnosticsOpen ? setFps : undefined}
@@ -301,7 +371,7 @@ export default function GamePage() {
               </div>
             )}
             <div className="canvas-vignette" aria-hidden="true" />
-            {nearNpc && quest.stage === 'orientation' && (
+            {nearNpc && quest.stage === 'orientation' && !assessmentActive && (
               <button
                 className="interact-prompt"
                 type="button"
@@ -326,10 +396,10 @@ export default function GamePage() {
             {accessiblePath && (
               <div id="accessible-actions" className="accessible-path__content">
                 <p>
-                  Du kan fullføre hele oppdraget med tastatur og skjermleser uten
-                  å navigere i 3D-verdenen.
+                  Du kan fullføre hele det aktive oppdraget med tastatur og
+                  skjermleser uten å navigere i 3D-verdenen.
                 </p>
-                {quest.stage === 'orientation' && (
+                {quest.stage === 'orientation' && !assessmentActive && (
                   <button className="button button--primary" type="button" onClick={startDialogue}>
                     Snakk med Nor
                   </button>
@@ -341,21 +411,13 @@ export default function GamePage() {
 
         <aside className="quest-sidebar" aria-labelledby="quest-title">
           <p className="eyebrow">Aktivt oppdrag</p>
-          <h2 id="quest-title">{verticalSlice.title}</h2>
-          <p>{verticalSlice.learningObjective}</p>
+          <h2 id="quest-title">{activeContent.title}</h2>
+          <p>{activeContent.learningObjective}</p>
 
           <div className="quest-status" aria-live="polite">
             <span>Status</span>
             <strong>
-              {quest.stage === 'complete'
-                ? 'Fullført'
-                : quest.stage === 'decision'
-                  ? 'Avhengighetsport'
-                  : quest.stage === 'casebuilder'
-                    ? 'Casebuilder'
-                    : quest.stage === 'dialogue'
-                      ? 'Samtale med Nor'
-                      : 'Finn Nor'}
+              {questStatus}
             </strong>
           </div>
 
@@ -364,7 +426,7 @@ export default function GamePage() {
 
           <details className="source-panel">
             <summary>Kilder og avgrensninger</summary>
-            {verticalSlice.sources.map((source) => (
+            {activeContent.sources.map((source) => (
               <div key={source.id}>
                 <strong>{source.title}</strong>
                 <p>{source.note}</p>
@@ -375,7 +437,7 @@ export default function GamePage() {
       </section>
 
       <section className="learning-dock" aria-label="Oppdragsdialog">
-        {quest.stage === 'orientation' && (
+        {!assessmentActive && quest.stage === 'orientation' && (
           <div className="orientation-card">
             <div>
               <p className="eyebrow">Første mål</p>
@@ -388,14 +450,14 @@ export default function GamePage() {
           </div>
         )}
 
-        {quest.stage === 'dialogue' && (
+        {!assessmentActive && quest.stage === 'dialogue' && (
           <Dialogue
             index={quest.dialogueIndex}
             onAdvance={() => dispatch({ type: 'ADVANCE_DIALOGUE' })}
           />
         )}
 
-        {quest.stage === 'casebuilder' && (
+        {!assessmentActive && quest.stage === 'casebuilder' && (
           <form className="casebuilder" onSubmit={submitNeed}>
             <div className="casebuilder__heading">
               <div>
@@ -445,7 +507,7 @@ export default function GamePage() {
           </form>
         )}
 
-        {quest.stage === 'decision' && (
+        {!assessmentActive && quest.stage === 'decision' && (
           <section className="decision-gate" aria-labelledby="decision-title">
             <p className="eyebrow">Avhengighetsport</p>
             <h2 id="decision-title">Hva bør laget gjøre nå?</h2>
@@ -476,7 +538,7 @@ export default function GamePage() {
           </section>
         )}
 
-        {quest.stage === 'complete' && (
+        {!assessmentActive && quest.stage === 'complete' && (
           <section className="completion-card" aria-labelledby="completion-title">
             <span className="completion-card__sigil" aria-hidden="true">✓</span>
             <div>
@@ -487,11 +549,24 @@ export default function GamePage() {
                 <strong>Læringspoeng:</strong> Scenario, behov og aktører styrer
                 veien. En teknisk kategori er ikke et meningsfullt førstevalg.
               </p>
-              <button className="button button--secondary" type="button" onClick={restart}>
-                Spill oppdraget på nytt
-              </button>
+              <div className="completion-card__actions">
+                <button className="button button--primary" type="button" onClick={beginAssessment}>
+                  Fortsett til Speilsalen
+                </button>
+                <button className="button button--secondary" type="button" onClick={restart}>
+                  Start kampanjen på nytt
+                </button>
+              </div>
             </div>
           </section>
+        )}
+
+        {assessmentActive && (
+          <UnderstandAssessQuest
+            state={assessment}
+            dispatch={dispatchAssessment}
+            onOpenCampaign={() => setCampaignOpen(true)}
+          />
         )}
       </section>
     </main>

@@ -6,7 +6,7 @@ No external visual, audio, font, model, texture, animation, icon, or generated b
 
 | Item | Type | Origin | Licence | Attribution | Runtime path |
 | --- | --- | --- | --- | --- | --- |
-| Showroom geometry | Three.js primitives | Original project code | Project licence | Not required | `src/game/components/GameCanvas.tsx` |
+| Showroom and Speilsalen geometry | Three.js primitives | Original project code | Project licence | Not required | `src/game/components/GameCanvas.tsx` |
 | Player and Nor forms | Three.js primitives | Original project code | Project licence | Not required | `src/game/components/GameCanvas.tsx` |
 | UI motifs and gradients | CSS | Original project code | Project licence | Not required | `src/styles.css` |
 | Connection glyph | Inline SVG | Original project code, informed by NHN's published connection concept | Project licence | Not required | `src/components/BrandLockup.tsx` |
