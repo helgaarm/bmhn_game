@@ -682,15 +682,16 @@ kbd {
 .in-game-dialogue {
   position: absolute;
   z-index: 3;
-  right: clamp(0.7rem, 2vw, 1.25rem);
-  bottom: clamp(0.7rem, 2vw, 1.25rem);
-  left: clamp(0.7rem, 2vw, 1.25rem);
+  top: clamp(1rem, 12%, 4.25rem);
+  left: 50%;
+  width: min(44rem, calc(100% - 1.5rem));
   overflow: hidden;
   border: 1px solid rgba(123, 239, 178, 0.55);
   border-radius: 0.7rem;
   background: rgba(0, 41, 32, 0.62);
   box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.38);
   backdrop-filter: blur(14px) saturate(0.82);
+  transform: translateX(-50%);
   transition:
     border-color 180ms ease,
     background 180ms ease,
@@ -1918,6 +1919,11 @@ kbd {
 }
 
 @media (max-width: 620px) {
+  .in-game-dialogue {
+    top: 0.75rem;
+    width: calc(100% - 1rem);
+  }
+
   .in-game-dialogue__header {
     grid-template-columns: auto minmax(0, 1fr);
   }

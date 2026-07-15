@@ -2,6 +2,7 @@
 
 ## Unreleased - Phase 2 foundation and campaign start
 
+- Moved the in-world Nor dialogue from the bottom edge to a centred upper viewport position, keeping blur, hover, focus and keyboard controls intact.
 - Added mouse-drag and keyboard-controlled third-person camera rotation, camera-relative movement, adjustable sensitivity, reset control and reduced-movement behaviour without changing the existing movement keys.
 - Added pure camera transform tests and Playwright coverage that exercises the controls in Visningshallen, Speilsalen and Ansvarslageret.
 - Added a playable Connect quest in a separate procedural Forbindelsesbro with Nor dialogue, two synthetic service cards, conditional connection routes and explicit unsupported/false-approval failure paths.
