@@ -32,6 +32,12 @@
 - Control: ADR deferrals and release ladder; no multiplayer dependency is installed.
 - Owner: product and technical lead.
 
+### Campaign breadth is mistaken for playable depth - high impact, medium likelihood
+
+- Signal: the nine-stage dashboard is presented as a complete campaign even though stages 2–9 have no playable content.
+- Control: explicit unavailable states, Phase 2 foundation report, release notes, and one-stage-at-a-time acceptance.
+- Owner: product and learning design.
+
 ### Dependency or browser incompatibility - medium impact, medium likelihood
 
 - Signal: build, WebGL, WASM physics, or automated browser tests fail on a supported target.

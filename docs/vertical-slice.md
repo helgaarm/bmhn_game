@@ -40,8 +40,8 @@ Measured production bundle baseline on 2026-07-15:
 
 - HTML: 0.59 kB minified / 0.35 kB gzip.
 - Shared shell JavaScript: 235.95 kB / 75.72 kB gzip.
-- Styles: 14.10 kB / 3.78 kB gzip.
-- Lazy game route: 3,159.28 kB / 1,090.02 kB gzip.
+- Styles: 20.87 kB / 4.88 kB gzip.
+- Lazy game route: 3,173.10 kB / 1,094.21 kB gzip.
 
 The route boundary succeeds, but the game chunk exceeds the default Vite warning threshold and remains an explicit optimisation target.
 

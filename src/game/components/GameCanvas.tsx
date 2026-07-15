@@ -9,12 +9,16 @@ import {
 import { Suspense, useMemo, useRef } from 'react'
 import type { Group } from 'three'
 import { MathUtils, Vector3 } from 'three'
-
-type ControlName = 'forward' | 'backward' | 'left' | 'right'
+import {
+  movementControlMap,
+  type GameControl,
+} from '../input/controlMap'
 
 interface GameCanvasProps {
   reducedMotion: boolean
   onNpcProximityChange: (isNear: boolean) => void
+  onFirstFrame?: () => void
+  onFpsSample?: (fps: number) => void
 }
 
 const NPC_POSITION = new Vector3(0, 1, -1.5)
@@ -27,15 +31,17 @@ function Player({
   const proximity = useRef(false)
   const cameraPosition = useMemo(() => new Vector3(), [])
   const cameraTarget = useMemo(() => new Vector3(), [])
-  const [, getControls] = useKeyboardControls<ControlName>()
+  const [, getControls] = useKeyboardControls<GameControl>()
 
   useFrame(({ camera }, delta) => {
     const rigidBody = body.current
     if (!rigidBody) return
 
     const keys = getControls()
-    const directionX = Number(Boolean(keys.right)) - Number(Boolean(keys.left))
-    const directionZ = Number(Boolean(keys.backward)) - Number(Boolean(keys.forward))
+    const directionX =
+      Number(Boolean(keys['move-right'])) - Number(Boolean(keys['move-left']))
+    const directionZ =
+      Number(Boolean(keys['move-backward'])) - Number(Boolean(keys['move-forward']))
     const length = Math.hypot(directionX, directionZ) || 1
     const velocity = rigidBody.linvel()
     const speed = 3.6
@@ -205,16 +211,35 @@ function World({ reducedMotion, onNpcProximityChange }: GameCanvasProps) {
   )
 }
 
+function PerformanceSampler({
+  onFirstFrame,
+  onFpsSample,
+}: Pick<GameCanvasProps, 'onFirstFrame' | 'onFpsSample'>) {
+  const firstFrameSent = useRef(false)
+  const elapsed = useRef(0)
+  const frames = useRef(0)
+
+  useFrame((_, delta) => {
+    if (!firstFrameSent.current) {
+      firstFrameSent.current = true
+      onFirstFrame?.()
+    }
+
+    if (!onFpsSample) return
+    elapsed.current += delta
+    frames.current += 1
+    if (elapsed.current >= 1.5) {
+      onFpsSample(Math.round(frames.current / elapsed.current))
+      elapsed.current = 0
+      frames.current = 0
+    }
+  })
+
+  return null
+}
+
 export function GameCanvas(props: GameCanvasProps) {
-  const controls = useMemo(
-    () => [
-      { name: 'forward' as ControlName, keys: ['KeyW', 'ArrowUp'] },
-      { name: 'backward' as ControlName, keys: ['KeyS', 'ArrowDown'] },
-      { name: 'left' as ControlName, keys: ['KeyA', 'ArrowLeft'] },
-      { name: 'right' as ControlName, keys: ['KeyD', 'ArrowRight'] },
-    ],
-    [],
-  )
+  const controls = useMemo(() => movementControlMap, [])
 
   return (
     <KeyboardControls map={controls}>
@@ -227,6 +252,10 @@ export function GameCanvas(props: GameCanvasProps) {
         <Suspense fallback={null}>
           <Physics gravity={[0, -18, 0]}>
             <World {...props} />
+            <PerformanceSampler
+              onFirstFrame={props.onFirstFrame}
+              onFpsSample={props.onFpsSample}
+            />
           </Physics>
         </Suspense>
       </Canvas>

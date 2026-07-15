@@ -1,0 +1,49 @@
+# Phase 2 architecture decisions
+
+Status: accepted for the first Phase 2 foundation increment on 2026-07-15. This record does not approve multiplayer, broad campaign production, persistence, analytics, or technical Helsenorge eligibility rules.
+
+## Scope interpretation
+
+The source documents use two Phase 2 scopes. The implementation plan defines an isolated 3D foundation; the system prompt defines Phase 2 and later as the first complete nine-step campaign. This increment closes remaining foundation gaps and starts the campaign spine without claiming that all nine stages are playable.
+
+## ADR-201 - Campaign content validation
+
+- Decision: define a Zod schema for the nine-stage campaign and execute it in unit/CI tests.
+- Runtime boundary: application code imports only inferred TypeScript types; Zod remains a development dependency and is not included in the game chunk.
+- Failure rule: duplicate stages, wrong order, broken next-stage references, invalid content profile, or missing gate/evidence fields fail the content test.
+- Deferred trigger: add a standalone content compiler when non-developers or remote packages author campaign data.
+
+## ADR-202 - Campaign progression state
+
+- Decision: use a second pure reducer for campaign state rather than expanding frame-loop or UI state.
+- Status vocabulary: unavailable, available, active, blocked, ready, completed, and failed-with-learning.
+- Current integration: completing the existing Discover quest records evidence and a decision, completes stage 1, and activates stage 2.
+- Deferred trigger: add versioned persistence only after state migration and recovery rules are approved.
+
+## ADR-203 - Decision journal
+
+- Decision: record choice, rationale, role, source, and consequence as deterministic campaign state.
+- Privacy: records contain only the synthetic scenario and player-entered prototype text; nothing is transmitted or persisted.
+- Authority: the journal is learning evidence, not legal, privacy, security, or production approval.
+
+## ADR-204 - Input abstraction
+
+- Decision: define named actions and key bindings outside the rendered player component.
+- Current actions: forward, backward, left, right, and interact.
+- Deferred trigger: expose remapping UI and controller bindings only after the accessibility/control design is approved.
+
+## ADR-205 - Asset loading contract
+
+- Decision: provide a fetch-based binary loader with byte progress, AbortSignal cancellation, explicit fallback, and structured diagnostic events.
+- Current usage: contract and tests only; no external runtime asset is introduced.
+- Asset gate: a GLB or other asset still requires item-level licence/provenance approval and manifest registration before use.
+
+## ADR-206 - Performance diagnostics
+
+- Decision: keep first-frame, sampled FPS, and optional Chromium heap estimates in an opt-in local diagnostics panel.
+- Privacy: no telemetry, storage, network reporting, scenario payload, or player identifier.
+- Evidence boundary: readings support debugging but do not constitute a representative hardware baseline until reference devices and a measurement protocol are approved.
+
+## Rollback
+
+Remove the campaign dashboard, campaign reducer/content modules, diagnostics callbacks, asset-loader module, and Zod development dependency. The Phase 1 route and quest reducer remain independently functional.

@@ -1,5 +1,17 @@
 # Release notes
 
+## Unreleased - Phase 2 foundation and campaign start
+
+- Added a schema-validated public campaign spine across all nine actor-journey stages.
+- Added deterministic campaign progression with full status vocabulary and replay tests.
+- Connected Discover completion to campaign evidence, decision logging, and activation of Understand and assess.
+- Added an accessible campaign dashboard with progress, stage criteria, gates, and a decision journal.
+- Added remapping-ready named input actions.
+- Added a tested binary asset-loader contract with progress, cancellation, fallback, and structured diagnostics; no external asset was introduced.
+- Added controlled scene readiness plus opt-in local first-frame, FPS, and optional memory diagnostics without telemetry.
+- Extended Playwright/Axe coverage to campaign state, journal, direct navigation, refresh, diagnostics, and the campaign modal.
+- The full campaign is not complete; stages 2–9 remain unavailable for play.
+
 ## Unreleased - Norsk helsenett brand alignment
 
 - Applied the published Norsk helsenett primary, supporting, and neutral colour system to the application and procedural 3D world.

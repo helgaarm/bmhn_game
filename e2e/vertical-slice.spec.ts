@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
-test('completes the accessible Phase 1 vertical slice', async ({ page }, testInfo) => {
+test('completes the vertical slice and starts the Phase 2 campaign', async ({ page }, testInfo) => {
   await page.goto('/')
   await expect(
     page.getByRole('heading', { name: 'Bygg med Helsenorge' }),
@@ -55,6 +55,31 @@ test('completes the accessible Phase 1 vertical slice', async ({ page }, testInf
     page.getByRole('heading', { name: 'Porten til forståelse er åpen' }),
   ).toBeVisible()
   await expect(page.getByText('Fullført', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Kampanje' }).click()
+  const campaignDialog = page.getByRole('dialog', {
+    name: 'Fjordglimt: Fra behov til trygg avslutning',
+  })
+  await expect(campaignDialog).toBeVisible()
+  await expect(campaignDialog.getByText('1 av 9 steg fullført')).toBeVisible()
+  await expect(
+    campaignDialog.getByRole('button', { name: /Forstå og vurdere.*Aktiv/ }),
+  ).toBeVisible()
+
+  if (process.env.VISUAL_REVIEW === '1') {
+    await page.screenshot({
+      path: testInfo.outputPath('phase-2-campaign-dashboard.png'),
+      fullPage: false,
+    })
+  }
+
+  await campaignDialog.getByRole('tab', { name: /Beslutningsjournal/ }).click()
+  await expect(
+    campaignDialog.getByRole('heading', {
+      name: 'Avklar behov, målgruppe og rammer med de berørte aktørene',
+    }),
+  ).toBeVisible()
+  await campaignDialog.getByRole('button', { name: 'Lukk' }).click()
 })
 
 test('unknown routes have a recovery path', async ({ page }) => {
@@ -76,6 +101,28 @@ test('landing and game entry have no automatically detectable accessibility viol
   await expect(
     page.getByRole('heading', { name: 'Visningshallen', exact: true }),
   ).toBeVisible()
+  await expect(page.getByText('Klargjør visningshallen')).toBeHidden()
+
+  await page.getByRole('button', { name: 'Innstillinger' }).click()
+  await page.getByRole('button', { name: 'Vis teknisk diagnose' }).click()
+  const diagnostics = page.locator('#performance-diagnostics')
+  await expect(diagnostics.getByText('Klar', { exact: true })).toBeVisible()
+  await expect(diagnostics.locator('dd').nth(1)).toHaveText(/\d+ ms/)
+  await expect(diagnostics.locator('dd').nth(2)).toHaveText(/\d+/)
+  await page.getByRole('button', { name: 'Innstillinger' }).click()
+
   const gameResults = await new AxeBuilder({ page }).analyze()
   expect(gameResults.violations).toEqual([])
+
+  await page.getByRole('button', { name: 'Kampanje' }).click()
+  const campaignResults = await new AxeBuilder({ page })
+    .include('.campaign-modal')
+    .analyze()
+  expect(campaignResults.violations).toEqual([])
+
+  await page.getByRole('button', { name: 'Lukk' }).click()
+  await page.reload()
+  await expect(
+    page.getByRole('heading', { name: 'Visningshallen', exact: true }),
+  ).toBeVisible()
 })

@@ -1,26 +1,46 @@
-import { useEffect, useReducer, useState, type FormEvent } from 'react'
+import { useEffect, useReducer, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { BrandLockup } from '../components/BrandLockup'
+import { CampaignDashboard } from './components/CampaignDashboard'
 import { GameCanvas } from './components/GameCanvas'
 import { GameErrorBoundary } from './components/GameErrorBoundary'
 import {
-  journeySteps,
   verticalSlice,
   type AudienceId,
   type DecisionId,
 } from './content/verticalSlice'
+import { firstCampaign } from './content/firstCampaign'
+import {
+  createCampaignReducer,
+  createCampaignState,
+  type CampaignStageState,
+} from './state/campaignMachine'
 import { initialQuestState, questReducer } from './state/questMachine'
+import { matchesControlKey } from './input/controlMap'
 
-function JourneyMap({ completed }: { completed: boolean }) {
+const campaignReducer = createCampaignReducer(firstCampaign)
+
+interface BrowserPerformanceMemory {
+  usedJSHeapSize: number
+}
+
+function readMemoryEstimateMb() {
+  const memory = (
+    performance as Performance & { memory?: BrowserPerformanceMemory }
+  ).memory
+  return memory ? Math.round(memory.usedJSHeapSize / 1024 / 1024) : null
+}
+
+function JourneyMap({ stages }: { stages: CampaignStageState[] }) {
   return (
     <ol className="journey-map" aria-label="Aktørreisen">
-      {journeySteps.map((step, index) => {
-        const isReached = completed || index === 0
+      {firstCampaign.stages.map((step, index) => {
+        const status = stages[index]?.status ?? 'unavailable'
         return (
           <li
             key={step.id}
-            className={isReached ? 'journey-map__step--reached' : undefined}
-            aria-current={index === 0 && !completed ? 'step' : undefined}
+            className={`journey-map__step--${status}`}
+            aria-current={status === 'active' ? 'step' : undefined}
           >
             <span>{index + 1}</span>
             <small>{step.label}</small>
@@ -68,6 +88,11 @@ function ThreeDFallback() {
 
 export default function GamePage() {
   const [quest, dispatch] = useReducer(questReducer, initialQuestState)
+  const [campaign, dispatchCampaign] = useReducer(
+    campaignReducer,
+    firstCampaign,
+    createCampaignState,
+  )
   const [nearNpc, setNearNpc] = useState(false)
   const [accessiblePath, setAccessiblePath] = useState(false)
   const [needDescription, setNeedDescription] = useState('')
@@ -75,6 +100,13 @@ export default function GamePage() {
   const [reducedMotion, setReducedMotion] = useState(false)
   const [highContrast, setHighContrast] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [campaignOpen, setCampaignOpen] = useState(false)
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
+  const [sceneReady, setSceneReady] = useState(false)
+  const [sceneFailed, setSceneFailed] = useState(false)
+  const [firstFrameMs, setFirstFrameMs] = useState<number | null>(null)
+  const [fps, setFps] = useState<number | null>(null)
+  const sceneStartedAt = useRef(performance.now())
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -86,7 +118,11 @@ export default function GamePage() {
 
   useEffect(() => {
     const interact = (event: KeyboardEvent) => {
-      if (event.code === 'KeyE' && nearNpc && quest.stage === 'orientation') {
+      if (
+        matchesControlKey('interact', event.code) &&
+        nearNpc &&
+        quest.stage === 'orientation'
+      ) {
         dispatch({ type: 'START_DIALOGUE' })
       }
     }
@@ -94,7 +130,45 @@ export default function GamePage() {
     return () => window.removeEventListener('keydown', interact)
   }, [nearNpc, quest.stage])
 
+  useEffect(() => {
+    if (quest.stage !== 'complete') return
+    const decision = verticalSlice.decisions.find(
+      (candidate) => candidate.id === quest.selectedDecisionId,
+    )
+    if (!decision || !quest.audienceId) return
+
+    dispatchCampaign({
+      type: 'COMPLETE_STAGE',
+      stageId: 'discover',
+      evidence: [
+        `Behov: ${quest.needDescription}`,
+        `Målgruppe: ${quest.audienceId}`,
+      ],
+      decision: {
+        id: 'discover-clarify-need',
+        stageId: 'discover',
+        choice: decision.label,
+        rationale: quest.needDescription,
+        role: 'Tjenesteteam',
+        sourceId: 'strategy-journey',
+        consequence: decision.consequence,
+      },
+    })
+  }, [quest])
+
   const startDialogue = () => dispatch({ type: 'START_DIALOGUE' })
+
+  const handleFirstFrame = () => {
+    setSceneReady(true)
+    setFirstFrameMs((current) =>
+      current ?? Math.round(performance.now() - sceneStartedAt.current),
+    )
+  }
+
+  const handleSceneFailure = () => {
+    setSceneFailed(true)
+    setSceneReady(true)
+  }
 
   const submitNeed = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -107,6 +181,7 @@ export default function GamePage() {
 
   const restart = () => {
     dispatch({ type: 'RESET' })
+    dispatchCampaign({ type: 'RESET' })
     setNeedDescription('')
     setAudienceId(null)
     setAccessiblePath(false)
@@ -126,6 +201,13 @@ export default function GamePage() {
         </Link>
         <div className="game-header__tools">
           <span className="phase-badge">{verticalSlice.level}</span>
+          <button
+            className="button button--compact button--secondary"
+            type="button"
+            onClick={() => setCampaignOpen(true)}
+          >
+            Kampanje
+          </button>
           <button
             className="button button--compact button--secondary"
             type="button"
@@ -156,8 +238,32 @@ export default function GamePage() {
             />
             Høy kontrast
           </label>
+          <button
+            className="text-button settings-panel__diagnostics-toggle"
+            type="button"
+            aria-expanded={diagnosticsOpen}
+            aria-controls="performance-diagnostics"
+            onClick={() => setDiagnosticsOpen((open) => !open)}
+          >
+            {diagnosticsOpen ? 'Skjul teknisk diagnose' : 'Vis teknisk diagnose'}
+          </button>
+          {diagnosticsOpen && (
+            <dl className="performance-diagnostics" id="performance-diagnostics">
+              <div><dt>Scene</dt><dd>{sceneFailed ? '2D-reserve' : sceneReady ? 'Klar' : 'Laster'}</dd></div>
+              <div><dt>Første bilde</dt><dd>{firstFrameMs === null ? 'Venter' : `${firstFrameMs} ms`}</dd></div>
+              <div><dt>FPS-estimat</dt><dd>{fps ?? 'Måler'}</dd></div>
+              <div><dt>JS-minne</dt><dd>{readMemoryEstimateMb() === null ? 'Ikke tilgjengelig' : `${readMemoryEstimateMb()} MB`}</dd></div>
+            </dl>
+          )}
         </section>
       )}
+
+      <CampaignDashboard
+        campaign={firstCampaign}
+        state={campaign}
+        open={campaignOpen}
+        onClose={() => setCampaignOpen(false)}
+      />
 
       <section className="game-layout">
         <section className="world-shell" aria-labelledby="world-title">
@@ -176,12 +282,24 @@ export default function GamePage() {
             role="region"
             aria-label="Interaktiv 3D-verden"
           >
-            <GameErrorBoundary fallback={<ThreeDFallback />}>
+            <GameErrorBoundary
+              fallback={<ThreeDFallback />}
+              onError={handleSceneFailure}
+            >
               <GameCanvas
                 reducedMotion={reducedMotion}
                 onNpcProximityChange={setNearNpc}
+                onFirstFrame={handleFirstFrame}
+                onFpsSample={diagnosticsOpen ? setFps : undefined}
               />
             </GameErrorBoundary>
+            {!sceneReady && (
+              <div className="canvas-loading" role="status" aria-live="polite">
+                <span aria-hidden="true" />
+                <strong>Klargjør visningshallen</strong>
+                <small>Starter scene, fysikk og tilgjengelig reservevei.</small>
+              </div>
+            )}
             <div className="canvas-vignette" aria-hidden="true" />
             {nearNpc && quest.stage === 'orientation' && (
               <button
@@ -242,7 +360,7 @@ export default function GamePage() {
           </div>
 
           <h3>Aktørreisen</h3>
-          <JourneyMap completed={quest.stage === 'complete'} />
+          <JourneyMap stages={campaign.stages} />
 
           <details className="source-panel">
             <summary>Kilder og avgrensninger</summary>

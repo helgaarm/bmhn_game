@@ -18,3 +18,5 @@ The [Norsk helsenett Brandpad](https://brandpad.io/norsk-helsenett/) is used as 
 ## Intake gate for future assets
 
 Every future item requires an item-level source URL, creator, exact licence/version, download date, modification record, attribution text, reviewer, and approved runtime path before commit. Collection-level assumptions are not sufficient. Unclear, non-commercial, or incompatible terms are rejected.
+
+Phase 2 adds a tested loader contract for progress, cancellation, fallback, and diagnostics. It does not add a runtime asset and therefore does not change the item table above.
