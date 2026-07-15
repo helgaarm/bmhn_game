@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:production": "npm run verify:production-rules && npm run build",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
@@ -16,6 +17,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:gate-c": "npm run build && playwright test --config playwright.gate-c.config.ts",
+    "verify:production-rules": "node scripts/verify-production-rules.mjs",
     "check": "npm run lint && npm run test && npm run build"
   },
   "dependencies": {

@@ -1,8 +1,21 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
-test('completes Discover and Understand and assess', async ({ page }, testInfo) => {
-  test.setTimeout(90_000)
+async function exerciseCameraControls(page: Page) {
+  const canvas = page.locator('canvas')
+  const box = await canvas.boundingBox()
+  expect(box).not.toBeNull()
+  if (!box) return
+  await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.5)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width * 0.68, box.y + box.height * 0.43, { steps: 5 })
+  await page.mouse.up()
+  await page.keyboard.press('KeyQ')
+  await page.keyboard.press('KeyC')
+}
+
+test('completes the first four stages through Connect', async ({ page }, testInfo) => {
+  test.setTimeout(300_000)
   await page.goto('/')
   await expect(
     page.getByRole('heading', { name: 'Bygg med Helsenorge' }),
@@ -19,6 +32,7 @@ test('completes Discover and Understand and assess', async ({ page }, testInfo) 
   await expect(
     page.getByRole('heading', { name: 'Visningshallen', exact: true }),
   ).toBeVisible()
+  await exerciseCameraControls(page)
 
   if (process.env.VISUAL_REVIEW === '1') {
     await page.waitForTimeout(1800)
@@ -30,6 +44,27 @@ test('completes Discover and Understand and assess', async ({ page }, testInfo) 
 
   await page.getByRole('button', { name: 'Bruk tilgjengelig 2D-vei' }).click()
   await page.getByRole('button', { name: 'Snakk med Nor' }).click()
+
+  const inGameDialogue = page.getByLabel('Dialog med Nor')
+  const dialogueToggle = inGameDialogue.locator('.in-game-dialogue__toggle')
+  await expect(dialogueToggle).toHaveAttribute('aria-expanded', 'false')
+  if (process.env.VISUAL_REVIEW === '1') {
+    await page.locator('.canvas-container').screenshot({
+      path: testInfo.outputPath('phase-2-dialogue-overlay-blurred.png'),
+    })
+  }
+  await inGameDialogue.hover()
+  await expect(dialogueToggle).toHaveAttribute('aria-expanded', 'true')
+  await page.locator('.world-shell__heading').hover()
+  await expect(dialogueToggle).toHaveAttribute('aria-expanded', 'false')
+  await page.keyboard.press('KeyT')
+  await expect(dialogueToggle).toHaveAttribute('aria-expanded', 'true')
+
+  if (process.env.VISUAL_REVIEW === '1') {
+    await page.locator('.canvas-container').screenshot({
+      path: testInfo.outputPath('phase-2-dialogue-overlay.png'),
+    })
+  }
 
   await page.getByRole('button', { name: 'Fortsett' }).click()
   await page.getByRole('button', { name: 'Fortsett' }).click()
@@ -74,6 +109,21 @@ test('completes Discover and Understand and assess', async ({ page }, testInfo) 
     })
   }
 
+  await campaignDialog.getByRole('tab', { name: /Regler \(11\)/ }).click()
+  await expect(
+    campaignDialog.getByText(/Blokkert.*faglig verifikasjon og godkjenning/),
+  ).toBeVisible()
+  await expect(
+    campaignDialog.getByRole('heading', { name: 'HelseID-klientarkitektur' }),
+  ).toBeVisible()
+  await expect(
+    campaignDialog.getByText('11 anvendelsesvurderinger mangler'),
+  ).toBeVisible()
+  const ruleResults = await new AxeBuilder({ page })
+    .include('.production-rules')
+    .analyze()
+  expect(ruleResults.violations).toEqual([])
+
   await campaignDialog.getByRole('tab', { name: /Beslutningsjournal/ }).click()
   await expect(
     campaignDialog.getByRole('heading', {
@@ -83,7 +133,26 @@ test('completes Discover and Understand and assess', async ({ page }, testInfo) 
   await campaignDialog.getByRole('button', { name: 'Lukk' }).click()
 
   await page.getByRole('button', { name: 'Fortsett til Speilsalen' }).click()
-  await expect(page.getByRole('heading', { name: 'Speilsalen', exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Porten til Speilsalen', exact: true }),
+  ).toBeVisible()
+  await page.locator('canvas').click()
+  await page.keyboard.down('ArrowUp')
+  try {
+    await expect(
+      page.getByRole('heading', { name: 'Speilsalen', exact: true }),
+    ).toBeVisible()
+  } finally {
+    await page.keyboard.up('ArrowUp')
+  }
+  await page.evaluate(() => new Promise(requestAnimationFrame))
+  await exerciseCameraControls(page)
+  if (process.env.VISUAL_REVIEW === '1') {
+    await page.locator('.canvas-container').screenshot({
+      path: testInfo.outputPath('phase-2-mirror-hall-world.png'),
+    })
+  }
+  await page.keyboard.press('KeyT')
   await page.getByRole('button', { name: 'Fortsett' }).click()
   await page.getByRole('button', { name: 'Fortsett' }).click()
   await page.getByRole('button', { name: 'Åpne aktørkartet' }).click()
@@ -152,6 +221,109 @@ test('completes Discover and Understand and assess', async ({ page }, testInfo) 
   ).toBeVisible()
   await campaignDialog.getByRole('button', { name: 'Lukk' }).click()
 
+  await page.getByRole('button', { name: 'Fortsett til Ansvarslageret' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Ansvarslageret', exact: true }),
+  ).toBeVisible()
+  await exerciseCameraControls(page)
+  if (process.env.VISUAL_REVIEW === '1') {
+    await page.evaluate(() => new Promise(requestAnimationFrame))
+    await page.locator('.canvas-container').screenshot({
+      path: testInfo.outputPath('phase-2-responsibility-warehouse-world.png'),
+    })
+  }
+
+  await page.keyboard.press('KeyT')
+  await page.getByRole('button', { name: 'Fortsett' }).click()
+  await page.getByRole('button', { name: 'Fortsett' }).click()
+  await page.getByRole('button', { name: 'Åpne bestillingssiden' }).click()
+
+  const orderSheetResults = await new AxeBuilder({ page })
+    .include('.order-sheet')
+    .analyze()
+  expect(orderSheetResults.violations).toEqual([])
+
+  await page.getByRole('button', { name: 'Prøv ansvarsporten' }).click()
+  await expect(page.getByText(/Formål og omfang må beskrives/)).toBeVisible()
+
+  await page.getByLabel('Formål og avgrenset omfang').fill(
+    'Innbyggeren skal kunne forberede dialogen; diagnostikk og behandling er utenfor.',
+  )
+  await page.getByLabel('Informasjonsflyt og dataretning').fill(
+    'Innbyggeren gir forberedende opplysninger til kommunen og mottar en oppsummering tilbake.',
+  )
+  await page.getByLabel(
+    'Navngitt tjeneste, tjenesteeier og dokumentasjonsstatus',
+  ).fill(
+    'Aktuell Helsenorge-tjeneste og tjenesteeier må navngis; gjeldende dokumentasjon skal kontrolleres.',
+  )
+  await page.locator('#owner-purpose-and-privacy').selectOption('privacy-legal')
+  await page.locator('#owner-risk-and-dpia').selectOption('security-privacy')
+  await page.locator('#owner-service-readiness').selectOption('product-integration')
+  await page.getByRole('radio', {
+    name: 'Bestill risikovurdering og DPIA-screening før behandling starter',
+  }).check()
+  await page.getByRole('button', { name: 'Prøv ansvarsporten' }).click()
+
+  await page.getByRole('button', {
+    name: 'Velg FHIR, SMART eller HelseID nå for å komme raskere videre',
+  }).click()
+  await expect(page.getByText(/Teknologien kan ikke velges/)).toBeVisible()
+  await page.getByRole('button', {
+    name: 'Bestill faglige vurderinger, behold status åpen og send avklart grunnlag videre',
+  }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Ansvarsporten er åpen' }),
+  ).toBeVisible()
+  await expect(page.getByText(/Produksjon forblir blokkert/)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Se evidens og neste steg' }).click()
+  await expect(campaignDialog.getByText('3 av 9 steg fullført')).toBeVisible()
+  await expect(
+    campaignDialog.getByRole('button', { name: /Koble på.*Aktiv/ }),
+  ).toBeVisible()
+  await campaignDialog.getByRole('button', {
+    name: /Avklare og bestille.*Fullført/,
+  }).click()
+  await expect(
+    campaignDialog.getByText(/Produksjonsstatus: blokkert/),
+  ).toBeVisible()
+  await campaignDialog.getByRole('tab', { name: /Beslutningsjournal \(3\)/ }).click()
+  await expect(
+    campaignDialog.getByRole('heading', {
+      name: 'Bestill faglige vurderinger, behold status åpen og send avklart grunnlag videre',
+    }),
+  ).toBeVisible()
+  await campaignDialog.getByRole('button', { name: 'Lukk' }).click()
+
+  await page.getByRole('button', { name: 'Fortsett til Forbindelsesbroen' }).click()
+  await expect(page.getByRole('heading', { name: 'Forbindelsesbroen', exact: true })).toBeVisible()
+  await page.keyboard.press('KeyT')
+  await page.getByRole('button', { name: 'Fortsett' }).click()
+  await page.getByRole('button', { name: 'Fortsett' }).click()
+  await page.getByRole('button', { name: 'Åpne veikartet' }).click()
+
+  await page.getByRole('radio', { name: /Syntetisk fagflate med FHIR/ }).check()
+  await page.getByRole('radio', { name: 'Legg klienthemmeligheten i nettleseren og anta SMART-støtte' }).check()
+  await page.getByLabel('3. Begrunn valget fra aktørtype og dokumentert kapasitet').fill(
+    'Tjenestekortet navngir helsepersonell, HelseID i test og FHIR R4, men ikke SMART.',
+  )
+  await page.getByRole('button', { name: 'Prøv forbindelsesporten' }).click()
+  await expect(page.getByText(/Avvises/)).toBeVisible()
+  await page.getByRole('radio', { name: /Bruk konfidensiell backend/ }).check()
+  await page.getByRole('button', { name: 'Prøv forbindelsesporten' }).click()
+  await page.getByRole('button', { name: 'Godkjenn produksjon fra det syntetiske tjenestekortet' }).click()
+  await expect(page.getByText(/kan ikke erstatte/)).toBeVisible()
+  await page.getByRole('button', { name: 'Registrer betinget læringsevidens og behold produksjonsporten blokkert' }).click()
+  await expect(page.getByRole('heading', { name: 'Forbindelsesporten er åpen' })).toBeVisible()
+
+  const connectResults = await new AxeBuilder({ page }).include('.completion-card').analyze()
+  expect(connectResults.violations).toEqual([])
+  await page.getByRole('button', { name: 'Se evidens og neste steg' }).click()
+  await expect(campaignDialog.getByText('4 av 9 steg fullført')).toBeVisible()
+  await expect(campaignDialog.getByRole('button', { name: /Designe og bygge.*Aktiv/ })).toBeVisible()
+  await campaignDialog.getByRole('button', { name: 'Lukk' }).click()
+
   await page.getByRole('button', { name: 'Innstillinger' }).click()
   await expect(page.getByText(/Lagret lokalt kl\./)).toBeVisible()
   if (process.env.VISUAL_REVIEW === '1') {
@@ -162,12 +334,14 @@ test('completes Discover and Understand and assess', async ({ page }, testInfo) 
   }
   await page.getByRole('button', { name: 'Innstillinger' }).click()
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Speilsalen', exact: true })).toBeVisible()
   await expect(
-    page.getByRole('heading', { name: 'Speilsalens port er åpen' }),
+    page.getByRole('heading', { name: 'Forbindelsesbroen', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Forbindelsesporten er åpen' }),
   ).toBeVisible()
   await page.getByRole('button', { name: 'Kampanje', exact: true }).click()
-  await expect(campaignDialog.getByText('2 av 9 steg fullført')).toBeVisible()
+  await expect(campaignDialog.getByText('4 av 9 steg fullført')).toBeVisible()
 })
 
 test('unknown routes have a recovery path', async ({ page }) => {
@@ -196,7 +370,7 @@ test('recovers safely from a corrupt local save', async ({ page }) => {
       if (!raw) return null
       return JSON.parse(raw).schemaVersion
     }),
-  ).toBe(1)
+  ).toBe(3)
 })
 
 test('landing and game entry have no automatically detectable accessibility violations', async ({

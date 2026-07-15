@@ -1,6 +1,8 @@
 import { firstCampaign } from '../content/firstCampaign'
 import { initialAssessmentState } from '../state/assessmentMachine'
 import { createCampaignState } from '../state/campaignMachine'
+import { initialClarifyOrderState } from '../state/clarifyOrderMachine'
+import { initialConnectState } from '../state/connectMachine'
 import { initialQuestState } from '../state/questMachine'
 import {
   GAME_SAVE_KEY,
@@ -30,6 +32,8 @@ class MemoryStorage implements StorageLike {
 const state: GameSaveState = {
   quest: initialQuestState,
   assessment: initialAssessmentState,
+  clarifyOrder: initialClarifyOrderState,
+  connect: initialConnectState,
   campaign: createCampaignState(firstCampaign),
   draft: {
     needDescription: 'Et syntetisk utkast til behov.',
@@ -67,6 +71,42 @@ describe('gameSave', () => {
       reason: 'invalid-json',
     })
     expect(storage.getItem(GAME_SAVE_KEY)).toBeNull()
+  })
+
+  it('migrates a valid schema-1 save with an initial Clarify and order state', () => {
+    const storage = new MemoryStorage()
+    writeGameSave(storage, state)
+    const legacy = JSON.parse(storage.getItem(GAME_SAVE_KEY) ?? '{}')
+    legacy.schemaVersion = 1
+    delete legacy.clarifyOrder
+    delete legacy.connect
+    storage.setItem(GAME_SAVE_KEY, JSON.stringify(legacy))
+
+    const loaded = loadGameSave(storage)
+
+    expect(loaded.status).toBe('restored')
+    if (loaded.status === 'restored') {
+      expect(loaded.save.schemaVersion).toBe(3)
+      expect(loaded.save.clarifyOrder).toEqual(initialClarifyOrderState)
+      expect(loaded.save.connect).toEqual(initialConnectState)
+    }
+  })
+
+  it('migrates a valid schema-2 save with an initial Connect state', () => {
+    const storage = new MemoryStorage()
+    writeGameSave(storage, state)
+    const legacy = JSON.parse(storage.getItem(GAME_SAVE_KEY) ?? '{}')
+    legacy.schemaVersion = 2
+    delete legacy.connect
+    storage.setItem(GAME_SAVE_KEY, JSON.stringify(legacy))
+
+    const loaded = loadGameSave(storage)
+
+    expect(loaded.status).toBe('restored')
+    if (loaded.status === 'restored') {
+      expect(loaded.save.schemaVersion).toBe(3)
+      expect(loaded.save.connect).toEqual(initialConnectState)
+    }
   })
 
   it('rejects an invalid state shape and removes it', () => {

@@ -2,8 +2,11 @@ import { useEffect, useReducer, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { BrandLockup } from '../components/BrandLockup'
 import { CampaignDashboard } from './components/CampaignDashboard'
+import { ClarifyOrderQuest } from './components/ClarifyOrderQuest'
+import { ConnectQuest } from './components/ConnectQuest'
 import { GameCanvas } from './components/GameCanvas'
 import { GameErrorBoundary } from './components/GameErrorBoundary'
+import { InGameDialogueOverlay } from './components/InGameDialogueOverlay'
 import { UnderstandAssessQuest } from './components/UnderstandAssessQuest'
 import {
   verticalSlice,
@@ -12,6 +15,8 @@ import {
 } from './content/verticalSlice'
 import { firstCampaign } from './content/firstCampaign'
 import { understandAssess } from './content/understandAssess'
+import { clarifyOrder } from './content/clarifyOrder'
+import { connect } from './content/connect'
 import {
   createCampaignReducer,
   createCampaignState,
@@ -22,7 +27,17 @@ import {
   assessmentReducer,
   initialAssessmentState,
 } from './state/assessmentMachine'
-import { matchesControlKey } from './input/controlMap'
+import {
+  buildClarifyRuleEvidence,
+  clarifyOrderReducer,
+  initialClarifyOrderState,
+} from './state/clarifyOrderMachine'
+import {
+  buildConnectRuleEvidence,
+  connectReducer,
+  initialConnectState,
+} from './state/connectMachine'
+import { isTextEntryTarget, matchesControlKey } from './input/controlMap'
 import {
   clearGameSave,
   loadGameSave,
@@ -92,32 +107,6 @@ function JourneyMap({ stages }: { stages: CampaignStageState[] }) {
   )
 }
 
-function Dialogue({
-  index,
-  onAdvance,
-}: {
-  index: number
-  onAdvance: () => void
-}) {
-  const isLast = index === verticalSlice.npc.dialogue.length - 1
-  return (
-    <section className="dialogue-panel" aria-labelledby="dialogue-speaker">
-      <div className="dialogue-panel__portrait" aria-hidden="true">
-        N
-      </div>
-      <div>
-        <p className="eyebrow" id="dialogue-speaker">
-          {verticalSlice.npc.name} · {verticalSlice.npc.role}
-        </p>
-        <p>{verticalSlice.npc.dialogue[index]}</p>
-        <button className="button button--primary" type="button" onClick={onAdvance}>
-          {isLast ? 'Åpne Casebuilder' : 'Fortsett'}
-        </button>
-      </div>
-    </section>
-  )
-}
-
 function ThreeDFallback() {
   return (
     <div className="canvas-fallback" role="status">
@@ -138,6 +127,14 @@ export default function GamePage() {
     assessmentReducer,
     restoredSave?.assessment ?? initialAssessmentState,
   )
+  const [clarification, dispatchClarification] = useReducer(
+    clarifyOrderReducer,
+    restoredSave?.clarifyOrder ?? initialClarifyOrderState,
+  )
+  const [connection, dispatchConnection] = useReducer(
+    connectReducer,
+    restoredSave?.connect ?? initialConnectState,
+  )
   const [campaign, dispatchCampaign] = useReducer(
     campaignReducer,
     restoredSave?.campaign ?? createCampaignState(firstCampaign),
@@ -151,12 +148,14 @@ export default function GamePage() {
     restoredSave?.draft.audienceId ?? null,
   )
   const [reducedMotion, setReducedMotion] = useState(false)
+  const [cameraSensitivity, setCameraSensitivity] = useState(1)
   const [highContrast, setHighContrast] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [campaignOpen, setCampaignOpen] = useState(false)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [sceneReady, setSceneReady] = useState(false)
   const [sceneFailed, setSceneFailed] = useState(false)
+  const [insideMirrorHall, setInsideMirrorHall] = useState(false)
   const [firstFrameMs, setFirstFrameMs] = useState<number | null>(null)
   const [fps, setFps] = useState<number | null>(null)
   const [saveEnabled, setSaveEnabled] = useState(
@@ -181,6 +180,7 @@ export default function GamePage() {
   useEffect(() => {
     const interact = (event: KeyboardEvent) => {
       if (
+        !isTextEntryTarget(event.target) &&
         matchesControlKey('interact', event.code) &&
         nearNpc &&
         quest.stage === 'orientation'
@@ -249,12 +249,84 @@ export default function GamePage() {
   }, [assessment])
 
   useEffect(() => {
+    if (clarification.stage !== 'complete' || !clarification.selectedDecisionId) {
+      return
+    }
+    const decision = clarifyOrder.decisions.find(
+      (candidate) => candidate.id === clarification.selectedDecisionId,
+    )
+    if (!decision) return
+    const actorSummary = understandAssess.actors
+      .filter((actor) => assessment.selectedActorIds.includes(actor.id))
+      .map((actor) => actor.label)
+      .join(', ')
+    const ruleEvidence = buildClarifyRuleEvidence(
+      clarification,
+      quest.needDescription,
+      actorSummary,
+    )
+
+    dispatchCampaign({
+      type: 'COMPLETE_STAGE',
+      stageId: 'clarify-order',
+      evidence: [
+        `Avklart omfang: ${clarification.purposeAndScope}`,
+        `Informasjonsflyt: ${clarification.informationFlow}`,
+        `Tjenestedokumentasjon: ${clarification.serviceDocumentation}`,
+        'Produksjonsstatus: blokkert – faglig verifikasjon og godkjenning gjenstår.',
+      ],
+      ruleEvidence,
+      decision: {
+        id: 'clarify-order-request-professional-review',
+        stageId: 'clarify-order',
+        choice: decision.label,
+        rationale:
+          'Ansvar, avhengigheter og åpne godkjenninger må være synlige før teknisk vei velges.',
+        role: 'Bestiller',
+        sourceId: 'production-rule-register',
+        consequence: decision.consequence,
+      },
+    })
+  }, [assessment.selectedActorIds, clarification, quest.needDescription])
+
+  useEffect(() => {
+    if (connection.stage !== 'complete' || !connection.selectedDecisionId) return
+    const service = connect.services.find((item) => item.id === connection.selectedServiceId)
+    const route = connect.routes.find((item) => item.id === connection.selectedRouteId)
+    const decision = connect.decisions.find((item) => item.id === connection.selectedDecisionId)
+    if (!service || !route || !decision) return
+
+    dispatchCampaign({
+      type: 'COMPLETE_STAGE',
+      stageId: 'connect',
+      evidence: [
+        `Tjenestekontekst: ${service.title} – ${service.documentation}`,
+        `Valgt samarbeidsvei: ${route.label}`,
+        `Begrunnelse: ${connection.rationale}`,
+        'Produksjonsstatus: blokkert – tjenestespesifikk og faglig verifikasjon gjenstår.',
+      ],
+      ruleEvidence: buildConnectRuleEvidence(connection),
+      decision: {
+        id: 'connect-record-conditional-evidence',
+        stageId: 'connect',
+        choice: decision.label,
+        rationale: connection.rationale,
+        role: 'Samhandlingsansvarlig',
+        sourceId: 'production-rule-register',
+        consequence: decision.consequence,
+      },
+    })
+  }, [connection])
+
+  useEffect(() => {
     if (!saveEnabled) return
     setSaveMessage('Venter på å lagre lokal fremdrift …')
     const timer = window.setTimeout(() => {
       const result = writeGameSave(window.localStorage, {
         quest,
         assessment,
+        clarifyOrder: clarification,
+        connect: connection,
         campaign,
         draft: { needDescription, audienceId },
       })
@@ -274,7 +346,16 @@ export default function GamePage() {
     }, 300)
 
     return () => window.clearTimeout(timer)
-  }, [assessment, audienceId, campaign, needDescription, quest, saveEnabled])
+  }, [
+    assessment,
+    audienceId,
+    campaign,
+    clarification,
+    connection,
+    needDescription,
+    quest,
+    saveEnabled,
+  ])
 
   const startDialogue = () => dispatch({ type: 'START_DIALOGUE' })
 
@@ -301,17 +382,35 @@ export default function GamePage() {
 
   const beginAssessment = () => {
     if (!quest.audienceId) return
+    setInsideMirrorHall(false)
     dispatchAssessment({ type: 'BEGIN', requiredActorId: quest.audienceId })
+    setAccessiblePath(true)
+  }
+
+  const beginClarification = () => {
+    if (assessment.stage !== 'complete') return
+    setInsideMirrorHall(false)
+    dispatchClarification({ type: 'BEGIN' })
+    setAccessiblePath(true)
+  }
+
+  const beginConnect = () => {
+    if (clarification.stage !== 'complete') return
+    setInsideMirrorHall(false)
+    dispatchConnection({ type: 'BEGIN' })
     setAccessiblePath(true)
   }
 
   const restart = () => {
     dispatch({ type: 'RESET' })
     dispatchAssessment({ type: 'RESET' })
+    dispatchClarification({ type: 'RESET' })
+    dispatchConnection({ type: 'RESET' })
     dispatchCampaign({ type: 'RESET' })
     setNeedDescription('')
     setAudienceId(null)
     setAccessiblePath(false)
+    setInsideMirrorHall(false)
   }
 
   const clearLocalProgress = () => {
@@ -326,10 +425,42 @@ export default function GamePage() {
   }
 
   const assessmentActive = assessment.stage !== 'locked'
-  const activeContent = assessmentActive ? understandAssess : verticalSlice
-  const activeWorldTitle = assessmentActive ? 'Speilsalen' : 'Visningshallen'
+  const clarificationActive = clarification.stage !== 'locked'
+  const connectionActive = connection.stage !== 'locked'
+  const activeContent = connectionActive
+    ? connect
+    : clarificationActive
+    ? clarifyOrder
+    : assessmentActive
+      ? understandAssess
+      : verticalSlice
+  const activeWorldTitle = connectionActive
+    ? 'Forbindelsesbroen'
+    : clarificationActive
+    ? 'Ansvarslageret'
+    : assessmentActive
+    ? insideMirrorHall
+      ? 'Speilsalen'
+      : 'Porten til Speilsalen'
+    : 'Visningshallen'
 
-  const questStatus = assessmentActive
+  const questStatus = connectionActive
+    ? connection.stage === 'complete'
+      ? 'Fullført · produksjon blokkert'
+      : connection.stage === 'gate'
+        ? 'Forbindelsesport'
+        : connection.stage === 'route-map'
+          ? 'Betinget veikart'
+          : 'Samtale med Nor'
+    : clarificationActive
+    ? clarification.stage === 'complete'
+      ? 'Fullført · produksjon blokkert'
+      : clarification.stage === 'gate'
+        ? 'Ansvarsport'
+        : clarification.stage === 'order-sheet'
+          ? 'Bestillingsside'
+          : 'Samtale med Nor'
+    : assessmentActive
     ? assessment.stage === 'complete'
       ? 'Fullført'
       : assessment.stage === 'gate'
@@ -346,6 +477,56 @@ export default function GamePage() {
           : quest.stage === 'dialogue'
             ? 'Samtale med Nor'
             : 'Finn Nor'
+
+  const activeDialogue = connectionActive && connection.stage === 'dialogue'
+    ? {
+        conversationId: 'connect',
+        speaker: connect.npc.name,
+        role: connect.npc.role,
+        text: connect.npc.dialogue[connection.dialogueIndex],
+        advanceLabel:
+          connection.dialogueIndex === connect.npc.dialogue.length - 1
+            ? 'Åpne veikartet'
+            : 'Fortsett',
+        onAdvance: () => dispatchConnection({ type: 'ADVANCE_DIALOGUE' }),
+      }
+    : clarificationActive && clarification.stage === 'dialogue'
+    ? {
+        conversationId: 'clarify-order',
+        speaker: clarifyOrder.npc.name,
+        role: clarifyOrder.npc.role,
+        text: clarifyOrder.npc.dialogue[clarification.dialogueIndex],
+        advanceLabel:
+          clarification.dialogueIndex === clarifyOrder.npc.dialogue.length - 1
+            ? 'Åpne bestillingssiden'
+            : 'Fortsett',
+        onAdvance: () => dispatchClarification({ type: 'ADVANCE_DIALOGUE' }),
+      }
+    : assessmentActive && assessment.stage === 'dialogue'
+      ? {
+          conversationId: 'understand-assess',
+          speaker: understandAssess.npc.name,
+          role: understandAssess.npc.role,
+          text: understandAssess.npc.dialogue[assessment.dialogueIndex],
+          advanceLabel:
+            assessment.dialogueIndex === understandAssess.npc.dialogue.length - 1
+              ? 'Åpne aktørkartet'
+              : 'Fortsett',
+          onAdvance: () => dispatchAssessment({ type: 'ADVANCE_DIALOGUE' }),
+        }
+      : !assessmentActive && quest.stage === 'dialogue'
+        ? {
+            conversationId: 'discover',
+            speaker: verticalSlice.npc.name,
+            role: verticalSlice.npc.role,
+            text: verticalSlice.npc.dialogue[quest.dialogueIndex],
+            advanceLabel:
+              quest.dialogueIndex === verticalSlice.npc.dialogue.length - 1
+                ? 'Åpne Casebuilder'
+                : 'Fortsett',
+            onAdvance: () => dispatch({ type: 'ADVANCE_DIALOGUE' }),
+          }
+        : null
 
   return (
     <main
@@ -407,6 +588,21 @@ export default function GamePage() {
             />
             Høy kontrast
           </label>
+          <label className="settings-panel__range" htmlFor="camera-sensitivity">
+            Kamerafølsomhet: {cameraSensitivity.toFixed(2)}×
+            <input
+              id="camera-sensitivity"
+              type="range"
+              min="0.25"
+              max="2"
+              step="0.25"
+              value={cameraSensitivity}
+              onChange={(event) => setCameraSensitivity(Number(event.target.value))}
+            />
+          </label>
+          <p className="settings-panel__help">
+            Dra med musen, eller bruk Q/R og Page Up/Page Down. C nullstiller kameraet.
+          </p>
           <div className="save-settings" role="status">
             <strong>Lokal fremdrift</strong>
             <span>{saveMessage}</span>
@@ -452,7 +648,7 @@ export default function GamePage() {
               <h1 id="world-title">{activeWorldTitle}</h1>
             </div>
             <p className="control-hint">
-              <kbd>WASD</kbd> / piltaster for å bevege deg
+              <kbd>WASD</kbd> bevegelse · dra musen / <kbd>Q</kbd><kbd>R</kbd> kamera
             </p>
           </div>
 
@@ -467,8 +663,18 @@ export default function GamePage() {
             >
               <GameCanvas
                 reducedMotion={reducedMotion}
-                zone={assessmentActive ? 'mirror-hall' : 'showroom'}
+                cameraSensitivity={cameraSensitivity}
+                zone={
+                  connectionActive
+                    ? 'connection-bridge'
+                    : clarificationActive
+                    ? 'responsibility-warehouse'
+                    : assessmentActive
+                      ? 'mirror-hall'
+                      : 'showroom'
+                }
                 onNpcProximityChange={setNearNpc}
+                onMirrorHallPresenceChange={setInsideMirrorHall}
                 onFirstFrame={handleFirstFrame}
                 onFpsSample={diagnosticsOpen ? setFps : undefined}
               />
@@ -490,6 +696,15 @@ export default function GamePage() {
                 Snakk med Nor
                 <kbd>E</kbd>
               </button>
+            )}
+            {assessmentActive && !clarificationActive && !insideMirrorHall && (
+              <div className="portal-guidance" role="status">
+                <strong>Speilsalens port er åpen</strong>
+                <span>Gå gjennom den lysende porten for å se salen.</span>
+              </div>
+            )}
+            {activeDialogue && (
+              <InGameDialogueOverlay {...activeDialogue} />
             )}
           </div>
 
@@ -546,6 +761,7 @@ export default function GamePage() {
         </aside>
       </section>
 
+      {!activeDialogue && (
       <section className="learning-dock" aria-label="Oppdragsdialog">
         {!assessmentActive && quest.stage === 'orientation' && (
           <div className="orientation-card">
@@ -558,13 +774,6 @@ export default function GamePage() {
             </div>
             <span className="orientation-card__marker" aria-hidden="true">N</span>
           </div>
-        )}
-
-        {!assessmentActive && quest.stage === 'dialogue' && (
-          <Dialogue
-            index={quest.dialogueIndex}
-            onAdvance={() => dispatch({ type: 'ADVANCE_DIALOGUE' })}
-          />
         )}
 
         {!assessmentActive && quest.stage === 'casebuilder' && (
@@ -671,14 +880,36 @@ export default function GamePage() {
           </section>
         )}
 
-        {assessmentActive && (
+        {assessmentActive && !clarificationActive && (
           <UnderstandAssessQuest
             state={assessment}
             dispatch={dispatchAssessment}
             onOpenCampaign={() => setCampaignOpen(true)}
+            onBeginClarification={beginClarification}
+            renderDialogue={false}
+          />
+        )}
+
+        {clarificationActive && !connectionActive && (
+          <ClarifyOrderQuest
+            state={clarification}
+            dispatch={dispatchClarification}
+            onOpenCampaign={() => setCampaignOpen(true)}
+            onBeginConnect={beginConnect}
+            renderDialogue={false}
+          />
+        )}
+
+        {connectionActive && (
+          <ConnectQuest
+            state={connection}
+            dispatch={dispatchConnection}
+            onOpenCampaign={() => setCampaignOpen(true)}
+            renderDialogue={false}
           />
         )}
       </section>
+      )}
     </main>
   )
 }

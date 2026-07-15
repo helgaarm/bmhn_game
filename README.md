@@ -4,7 +4,7 @@ An original browser-based 3D fantasy learning experience built around the nine-s
 
 Phase 1 is a single-player technical vertical slice. It provides a lazy-loaded game route, an original low-poly scene, third-person movement, one source-bounded guide, Casebuilder input, an explicit dependency gate, a decision consequence, and a complete accessible 2D path. Multiplayer is intentionally deferred.
 
-Phase 2 has started with a validated nine-stage campaign spine, campaign dashboard, decision journal, versioned local save/resume, controlled scene readiness, remapping-ready input actions, a licensed-asset intake gate, a cancellable/fallback asset-loader contract, and opt-in local diagnostics. Discover and Understand and assess are playable; stages 3–9 remain deliberately visible but unavailable.
+Phase 2 has started with a validated nine-stage campaign spine, campaign dashboard, decision journal, versioned local save/resume, controlled scene readiness, remapping-ready input actions, a licensed-asset intake gate, a cancellable/fallback asset-loader contract, and opt-in local diagnostics. Discover, Understand and assess, Clarify and order, and Connect are playable; stages 5–9 remain deliberately visible but unavailable.
 
 ## Run locally
 
@@ -16,6 +16,9 @@ npm run dev
 ```
 
 Open the URL printed by Vite. The regular shell is at `/` and the lazy-loaded game is at `/game`.
+
+Move relative to the camera with WASD or the arrow keys. Drag the mouse to turn, use `Q`/`R` and Page Up/Page Down as the keyboard camera alternative, and press `C` to reset the view. Camera sensitivity and reduced movement are available in Settings. Nor dialogue appears inside the 3D viewport and opens on hover or keyboard focus; `T` toggles it and `Esc` closes it. The complete learning path is also available through the semantic 2D route.
+Movement and game shortcuts pause automatically while focus is in a text field or form control.
 
 ## Quality commands
 

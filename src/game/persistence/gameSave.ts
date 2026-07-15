@@ -1,12 +1,19 @@
 import { firstCampaign } from '../content/firstCampaign'
 import { understandAssess } from '../content/understandAssess'
+import { clarifyOrder } from '../content/clarifyOrder'
+import { connect } from '../content/connect'
 import { verticalSlice, type AudienceId } from '../content/verticalSlice'
 import type { AssessmentState } from '../state/assessmentMachine'
 import type { CampaignState } from '../state/campaignMachine'
+import {
+  initialClarifyOrderState,
+  type ClarifyOrderState,
+} from '../state/clarifyOrderMachine'
 import type { QuestState } from '../state/questMachine'
+import { initialConnectState, type ConnectState } from '../state/connectMachine'
 
 export const GAME_SAVE_KEY = 'bmhn.game.save'
-export const GAME_SAVE_SCHEMA_VERSION = 1
+export const GAME_SAVE_SCHEMA_VERSION = 3
 
 export interface GameSaveDraft {
   needDescription: string
@@ -16,6 +23,8 @@ export interface GameSaveDraft {
 export interface GameSaveState {
   quest: QuestState
   assessment: AssessmentState
+  clarifyOrder: ClarifyOrderState
+  connect: ConnectState
   campaign: CampaignState
   draft: GameSaveDraft
 }
@@ -61,6 +70,14 @@ const assessmentStages = new Set([
   'gate',
   'complete',
 ])
+const clarifyOrderStages = new Set([
+  'locked',
+  'dialogue',
+  'order-sheet',
+  'gate',
+  'complete',
+])
+const connectStages = new Set(['locked', 'dialogue', 'route-map', 'gate', 'complete'])
 const campaignStatuses = new Set([
   'unavailable',
   'available',
@@ -78,6 +95,21 @@ const assessmentActorIds = new Set<string>(
 const assessmentDecisionIds = new Set<string>(
   understandAssess.decisions.map((item) => item.id),
 )
+const clarifyRoleIds = new Set<string>(
+  clarifyOrder.roles.map((item) => item.id),
+)
+const clarifyWorkstreamIds = new Set<string>(
+  clarifyOrder.workstreams.map((item) => item.id),
+)
+const clarifyDecisionIds = new Set<string>(
+  clarifyOrder.decisions.map((item) => item.id),
+)
+const riskDispositionIds = new Set<string>(
+  clarifyOrder.riskDispositions.map((item) => item.id),
+)
+const connectServiceIds = new Set<string>(connect.services.map((item) => item.id))
+const connectRouteIds = new Set<string>(connect.routes.map((item) => item.id))
+const connectDecisionIds = new Set<string>(connect.decisions.map((item) => item.id))
 const campaignStageIds = new Set<string>(firstCampaign.stages.map((stage) => stage.id))
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -143,6 +175,56 @@ function isAssessmentState(value: unknown): value is AssessmentState {
   )
 }
 
+function isClarifyOrderState(value: unknown): value is ClarifyOrderState {
+  if (!isRecord(value) || !isRecord(value.assignments)) return false
+  const assignments = value.assignments
+  const assignmentKeys = Object.keys(assignments)
+  const assignmentsAreValid =
+    assignmentKeys.length === clarifyWorkstreamIds.size &&
+    assignmentKeys.every((workstreamId) => {
+      const roleId = assignments[workstreamId]
+      return (
+        clarifyWorkstreamIds.has(workstreamId) &&
+        (roleId === null ||
+          (typeof roleId === 'string' && clarifyRoleIds.has(roleId)))
+      )
+    })
+
+  return (
+    clarifyOrderStages.has(String(value.stage)) &&
+    isNonNegativeInteger(value.dialogueIndex) &&
+    isString(value.purposeAndScope) &&
+    isString(value.informationFlow) &&
+    isString(value.serviceDocumentation) &&
+    (value.riskDispositionId === null ||
+      (typeof value.riskDispositionId === 'string' &&
+        riskDispositionIds.has(value.riskDispositionId))) &&
+    assignmentsAreValid &&
+    (value.selectedDecisionId === null ||
+      (typeof value.selectedDecisionId === 'string' &&
+        clarifyDecisionIds.has(value.selectedDecisionId))) &&
+    isNullableString(value.feedback) &&
+    isNonNegativeInteger(value.unsuccessfulAttempts)
+  )
+}
+
+function isConnectState(value: unknown): value is ConnectState {
+  if (!isRecord(value)) return false
+  return (
+    connectStages.has(String(value.stage)) &&
+    isNonNegativeInteger(value.dialogueIndex) &&
+    (value.selectedServiceId === null ||
+      (typeof value.selectedServiceId === 'string' && connectServiceIds.has(value.selectedServiceId))) &&
+    (value.selectedRouteId === null ||
+      (typeof value.selectedRouteId === 'string' && connectRouteIds.has(value.selectedRouteId))) &&
+    isString(value.rationale) &&
+    (value.selectedDecisionId === null ||
+      (typeof value.selectedDecisionId === 'string' && connectDecisionIds.has(value.selectedDecisionId))) &&
+    isNullableString(value.feedback) &&
+    isNonNegativeInteger(value.unsuccessfulAttempts)
+  )
+}
+
 function isCampaignState(value: unknown): value is CampaignState {
   if (!isRecord(value) || !Array.isArray(value.stages)) return false
   if (!Array.isArray(value.decisions)) return false
@@ -190,10 +272,76 @@ function isGameSaveEnvelope(value: unknown): value is GameSaveEnvelope {
     !Number.isNaN(Date.parse(value.savedAt)) &&
     isQuestState(value.quest) &&
     isAssessmentState(value.assessment) &&
+    isClarifyOrderState(value.clarifyOrder) &&
+    isConnectState(value.connect) &&
     isCampaignState(value.campaign) &&
     isString(value.draft.needDescription) &&
     (value.draft.audienceId === null || isAudienceId(value.draft.audienceId))
   )
+}
+
+type LegacyGameSaveEnvelopeV1 = Omit<
+  GameSaveEnvelope,
+  'schemaVersion' | 'clarifyOrder' | 'connect'
+> & { schemaVersion: 1 }
+
+function isLegacyGameSaveEnvelopeV1(
+  value: unknown,
+): value is LegacyGameSaveEnvelopeV1 {
+  if (!isRecord(value) || !isRecord(value.draft)) return false
+  return (
+    value.schemaVersion === 1 &&
+    value.campaignId === firstCampaign.id &&
+    value.campaignContentVersion === firstCampaign.version &&
+    isString(value.savedAt) &&
+    !Number.isNaN(Date.parse(value.savedAt)) &&
+    isQuestState(value.quest) &&
+    isAssessmentState(value.assessment) &&
+    isCampaignState(value.campaign) &&
+    isString(value.draft.needDescription) &&
+    (value.draft.audienceId === null || isAudienceId(value.draft.audienceId))
+  )
+}
+
+export function migrateGameSaveV1(value: unknown): GameSaveEnvelope | null {
+  if (!isLegacyGameSaveEnvelopeV1(value)) return null
+  return {
+    ...value,
+    schemaVersion: GAME_SAVE_SCHEMA_VERSION,
+    clarifyOrder: initialClarifyOrderState,
+    connect: initialConnectState,
+  }
+}
+
+type LegacyGameSaveEnvelopeV2 = Omit<
+  GameSaveEnvelope,
+  'schemaVersion' | 'connect'
+> & { schemaVersion: 2 }
+
+function isLegacyGameSaveEnvelopeV2(value: unknown): value is LegacyGameSaveEnvelopeV2 {
+  if (!isRecord(value) || !isRecord(value.draft)) return false
+  return (
+    value.schemaVersion === 2 &&
+    value.campaignId === firstCampaign.id &&
+    value.campaignContentVersion === firstCampaign.version &&
+    isString(value.savedAt) &&
+    !Number.isNaN(Date.parse(value.savedAt)) &&
+    isQuestState(value.quest) &&
+    isAssessmentState(value.assessment) &&
+    isClarifyOrderState(value.clarifyOrder) &&
+    isCampaignState(value.campaign) &&
+    isString(value.draft.needDescription) &&
+    (value.draft.audienceId === null || isAudienceId(value.draft.audienceId))
+  )
+}
+
+export function migrateGameSaveV2(value: unknown): GameSaveEnvelope | null {
+  if (!isLegacyGameSaveEnvelopeV2(value)) return null
+  return {
+    ...value,
+    schemaVersion: GAME_SAVE_SCHEMA_VERSION,
+    connect: initialConnectState,
+  }
 }
 
 function removeInvalidSave(storage: StorageLike) {
@@ -225,6 +373,22 @@ export function loadGameSave(storage: StorageLike): GameSaveLoadResult {
     return { status: 'recovered', reason: 'invalid-shape' }
   }
 
+  if (parsed.schemaVersion === 1) {
+    const migrated = migrateGameSaveV1(parsed)
+    if (!migrated) {
+      removeInvalidSave(storage)
+      return { status: 'recovered', reason: 'invalid-shape' }
+    }
+    return { status: 'restored', save: migrated }
+  }
+  if (parsed.schemaVersion === 2) {
+    const migrated = migrateGameSaveV2(parsed)
+    if (!migrated) {
+      removeInvalidSave(storage)
+      return { status: 'recovered', reason: 'invalid-shape' }
+    }
+    return { status: 'restored', save: migrated }
+  }
   if (parsed.schemaVersion !== GAME_SAVE_SCHEMA_VERSION) {
     return { status: 'incompatible', reason: 'unsupported-schema' }
   }

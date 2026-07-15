@@ -1,0 +1,361 @@
+import type { ProductionRuleRegistry } from './productionRuleSchema'
+
+export const productionRuleRegistry: ProductionRuleRegistry = {
+  version: 1,
+  approvedForImplementationAt: '2026-07-15',
+  sources: [
+    {
+      id: 'project-journey',
+      title: 'Bygg med Helsenorge – scenario-først-prinsippet',
+      owner: 'Prosjektets læringsdesign',
+      sourceClass: 'project-governance',
+      version: 'Prosjektbeslutning 2026-07-15',
+      publishedOrUpdatedAt: '2026-07-15',
+      verifiedAt: '2026-07-15',
+      recheckDueAt: '2027-01-11',
+      urls: [],
+      note:
+        'Intern prosjektregel. Den etablerer rekkefølge i læringen, ikke et eksternt teknisk eller juridisk krav.',
+    },
+    {
+      id: 'gdpr-norway',
+      title: 'Personopplysningsloven og personvernforordningen',
+      owner: 'Lovdata / norske lovgivende myndigheter',
+      sourceClass: 'law',
+      version: 'Forordning (EU) 2016/679, innlemmet ved LOV-2018-06-15-38',
+      publishedOrUpdatedAt: '2025-08-23',
+      verifiedAt: '2026-07-15',
+      recheckDueAt: '2027-01-11',
+      urls: [
+        'https://lovdata.no/dokument/NL/lov/2018-06-15-38/gdpr/ARTIKKEL_5',
+        'https://lovdata.no/dokument/NL/lov/2018-06-15-38/gdpr/ARTIKKEL_25',
+        'https://lovdata.no/dokument/NL/lov/2018-06-15-38/KAPITTEL_gdpr-4',
+      ],
+      note:
+        'Juridisk anvendelse og valg av behandlingsgrunnlag krever konkret faglig vurdering.',
+    },
+    {
+      id: 'normen-7',
+      title: 'Norm for informasjonssikkerhet og personvern i helse- og omsorgssektoren',
+      owner: 'Helsedirektoratet / styringsgruppen for Normen',
+      sourceClass: 'sector-norm',
+      version: '7.0',
+      publishedOrUpdatedAt: '2025-09-25',
+      verifiedAt: '2026-07-15',
+      recheckDueAt: '2026-10-13',
+      urls: [
+        'https://www.helsedirektoratet.no/normen/norm-for-informasjonssikkerhet-og-personvern-i-helse-og-omsorgssektoren',
+        'https://www.helsedirektoratet.no/normen/norm-for-informasjonssikkerhet-og-personvern-i-helse-og-omsorgssektoren/risikostyring/minimumskrav-for-a-sikre-konfidensialitet-integritet-tilgjengelighet-og-robusthet',
+        'https://www.helsedirektoratet.no/normen/norm-for-informasjonssikkerhet-og-personvern-i-helse-og-omsorgssektoren/informasjonssikkerhet',
+      ],
+      note:
+        'Tiltak og anvendelse må vurderes ut fra behandling, ansvar, risiko og virksomhetens plikter.',
+    },
+    {
+      id: 'helseid-overview',
+      title: 'HelseID og HelseID Selvbetjening',
+      owner: 'Norsk helsenett',
+      sourceClass: 'service-documentation',
+      version: 'Løpende nettdokument uten eksponert versjonsnummer',
+      publishedOrUpdatedAt: null,
+      verifiedAt: '2026-07-15',
+      recheckDueAt: '2026-10-13',
+      urls: [
+        'https://utviklerportal.nhn.no/informasjonstjenester/helseid/',
+        'https://utviklerportal.nhn.no/informasjonstjenester/helseid/helseid-selvbetjening',
+      ],
+      note:
+        'Tjenesten utvikles over tid; gjeldende portal og valgt API må kontrolleres før produksjon.',
+    },
+    {
+      id: 'helseid-security',
+      title: 'Sikkerhetskrav for klienter og API-er som integrerer med HelseID',
+      owner: 'Norsk helsenett',
+      sourceClass: 'service-documentation',
+      version: 'Løpende sikkerhetsprofil uten eksponert dokumentversjon',
+      publishedOrUpdatedAt: null,
+      verifiedAt: '2026-07-15',
+      recheckDueAt: '2026-10-13',
+      urls: [
+        'https://utviklerportal.nhn.no/informasjonstjenester/helseid/protokoller-og-sikkerhetsprofil/sikkerhetsprofil/docs/sikkerhetskrav_no_nbmd/',
+      ],
+      note:
+        'Valgt klient-, API- og innloggingsmønster avgjør hvilke nummererte krav som gjelder.',
+    },
+    {
+      id: 'fhir-r4',
+      title: 'HL7 FHIR Release 4 – CapabilityStatement og REST API',
+      owner: 'HL7 International',
+      sourceClass: 'standard',
+      version: 'FHIR R4 4.0.1',
+      publishedOrUpdatedAt: '2019-11-01',
+      verifiedAt: '2026-07-15',
+      recheckDueAt: '2027-01-11',
+      urls: [
+        'https://hl7.org/fhir/R4/capabilitystatement.html',
+        'https://hl7.org/fhir/R4/http.html',
+      ],
+      note:
+        'FHIR R4 er ikke en generell Helsenorge-versjon; den valgte tjenesten må angi versjon og profiler.',
+    },
+    {
+      id: 'smart-app-launch-2-2',
+      title: 'SMART App Launch Implementation Guide',
+      owner: 'HL7 International / SMART Health IT',
+      sourceClass: 'standard',
+      version: '2.2.0, STU 2.2',
+      publishedOrUpdatedAt: '2024-04-30',
+      verifiedAt: '2026-07-15',
+      recheckDueAt: '2027-01-11',
+      urls: [
+        'https://hl7.org/fhir/smart-app-launch/',
+        'https://hl7.org/fhir/smart-app-launch/STU2.2/app-launch.html',
+      ],
+      note:
+        'Reglene gjelder bare når den valgte tjenesten uttrykkelig støtter SMART App Launch.',
+    },
+  ],
+  rules: [
+    {
+      id: 'co-purpose-legal-basis',
+      title: 'Formål og behandlingsgrunnlag',
+      stageIds: ['clarify-order'],
+      exactClaim:
+        'Før en løsning som behandler personopplysninger kan bestilles eller utformes, skal laget dokumentere spesifikt formål, behandlingsansvarlig, eventuelle databehandlere, opplysningskategorier, mottakere, lagringstid og foreslått behandlingsgrunnlag. Hvis helseopplysninger behandles, skal også relevant vilkår etter personvernforordningen artikkel 9 dokumenteres. Spillet skal ikke erklære at et bestemt behandlingsgrunnlag er korrekt uten juridisk godkjenning.',
+      serviceScope: 'Alle behandlinger av personopplysninger i scenarioet.',
+      appliesWhen: 'Scenarioet innebærer eller planlegger behandling av personopplysninger.',
+      exceptions: [
+        'Rent syntetiske data kan markeres ikke relevant, men begrunnelse må registreres.',
+      ],
+      expectedEvidence: [
+        'Behandlingsoversikt',
+        'Foreslått behandlingsgrunnlag og artikkel 9-vilkår ved helseopplysninger',
+        'Juridisk vurderingsstatus',
+      ],
+      requiredApproverRoles: [
+        'Personvernjurist eller personvernombud',
+        'Behandlingsansvarlig',
+      ],
+      sourceIds: ['gdpr-norway'],
+      mandatoryInGame: true,
+      implementationStatus: 'approved-for-implementation',
+      productionStatus: 'pending-professional-approval',
+    },
+    {
+      id: 'co-risk-dpia',
+      title: 'Risiko og personvernkonsekvenser',
+      stageIds: ['clarify-order'],
+      exactClaim:
+        'Det skal foreligge en dokumentert risikovurdering før ny eller vesentlig endret behandling eller tilgjengeliggjøring av helse- og personopplysninger. Det skal dokumenteres om en vurdering av personvernkonsekvenser er nødvendig. Dersom behandlingen sannsynligvis medfører høy risiko for personers rettigheter og friheter, skal vurderingen gjennomføres før behandlingen starter.',
+      serviceScope: 'Personvern- og sikkerhetsvurdering av planlagt behandling.',
+      appliesWhen: 'Helse- eller personopplysninger skal behandles eller tilgjengeliggjøres.',
+      exceptions: [
+        'DPIA kan vurderes som ikke nødvendig, men avgjørelsen og begrunnelsen må registreres.',
+      ],
+      expectedEvidence: [
+        'Risikovurdering',
+        'DPIA-screening med begrunnelse',
+        'Åpne tiltak, eiere og frister',
+      ],
+      requiredApproverRoles: ['Personvernombud', 'Sikkerhetsansvarlig'],
+      sourceIds: ['gdpr-norway', 'normen-7'],
+      mandatoryInGame: true,
+      implementationStatus: 'approved-for-implementation',
+      productionStatus: 'pending-professional-approval',
+    },
+    {
+      id: 'co-need-before-connection',
+      title: 'Behov før forbindelsestype',
+      stageIds: ['clarify-order'],
+      exactClaim:
+        'Laget kan ikke velge HelseID, FHIR, SMART eller annen forbindelsestype før behov, aktører, informasjonsflyt, dataretning, valgt NHN- eller Helsenorge-tjeneste og tjenestens gjeldende dokumentasjon er identifisert.',
+      serviceScope: 'Scenario- og bestillingsgrunnlag før teknisk valg.',
+      appliesWhen: 'Alltid i overgangen fra avklaring til tilkobling.',
+      exceptions: [],
+      expectedEvidence: [
+        'Behov og aktørkart',
+        'Informasjonsflyt og dataretning',
+        'Navngitt tjeneste, tjenesteeier og gjeldende dokumentasjon',
+      ],
+      requiredApproverRoles: ['Produkteier', 'Integrasjonsarkitekt'],
+      sourceIds: ['project-journey'],
+      mandatoryInGame: true,
+      implementationStatus: 'approved-for-implementation',
+      productionStatus: 'pending-professional-approval',
+    },
+    {
+      id: 'cn-helseid-suitability',
+      title: 'Riktig bruk av HelseID',
+      stageIds: ['connect'],
+      exactClaim:
+        'HelseID skal ikke velges som innbyggerinnlogging. HelseID kan bare velges for brukerinnlogging eller API-sikring når aktørtypen og den valgte tjenestens dokumentasjon støtter dette.',
+      serviceScope: 'HelseID og autentiseringsbehov.',
+      appliesWhen: 'HelseID vurderes som del av løsningsmønsteret.',
+      exceptions: ['Regelen er ikke relevant når HelseID ikke inngår.'],
+      expectedEvidence: [
+        'Aktørtype og autentiseringsbehov',
+        'Tjenestespesifikk dokumentasjon som støtter valgt bruk',
+      ],
+      requiredApproverRoles: ['Identitetsarkitekt', 'Tjenesteeier'],
+      sourceIds: ['helseid-overview'],
+      mandatoryInGame: true,
+      implementationStatus: 'approved-for-implementation',
+      productionStatus: 'pending-professional-approval',
+    },
+    {
+      id: 'cn-helseid-production',
+      title: 'HelseID test og produksjon',
+      stageIds: ['connect'],
+      exactClaim:
+        'En HelseID-integrasjon skal starte i testmiljøet. Produksjonsporten skal forbli stengt til det foreligger evidens for godkjent leverandørstatus, signerte leverandørvilkår, nødvendig produksjonstilgang og godkjent kodegjennomgang.',
+      serviceScope: 'Onboarding og produksjonssetting med HelseID.',
+      appliesWhen: 'Valgt tjeneste eller klient bruker HelseID.',
+      exceptions: ['Regelen er ikke relevant for tjenester som ikke bruker HelseID.'],
+      expectedEvidence: [
+        'Testmiljø og testresultat',
+        'Leverandørstatus og leverandørvilkår',
+        'Produksjonstilgang og kodegjennomgang',
+      ],
+      requiredApproverRoles: ['Integrasjonsansvarlig', 'HelseID-tjenesteeier'],
+      sourceIds: ['helseid-overview'],
+      mandatoryInGame: true,
+      implementationStatus: 'approved-for-implementation',
+      productionStatus: 'pending-professional-approval',
+    },
+    {
+      id: 'cn-helseid-client',
+      title: 'HelseID-klientarkitektur',
+      stageIds: ['connect'],
+      exactClaim:
+        'Når HelseID er valgt, skal arkitekturen oppfylle den gjeldende HelseID-sikkerhetsprofilen. En nettleserapplikasjon uten backend skal avvises som HelseID-klient. Klienten skal være konfidensiell, beskytte privatnøkkelen, bruke private_key_jwt og etablere TLS 1.2 eller nyere. Klienter med brukerinnlogging skal bruke Authorization Code Flow, PKCE med S256 og PAR. Klienter uten brukerinnlogging skal bruke Client Credentials Grant.',
+      serviceScope: 'Klienter og API-er som integrerer med HelseID.',
+      appliesWhen: 'HelseID inngår i det valgte integrasjonsmønsteret.',
+      exceptions: [
+        'Krav for API-eier og klient må vurderes separat, og tjenestespesifikke krav kan være strengere.',
+      ],
+      expectedEvidence: [
+        'Arkitektur og klienttype',
+        'Valgt protokollflyt og nøkkelhåndtering',
+        'Tester av TLS, token- og sikkerhetsprofilkrav',
+      ],
+      requiredApproverRoles: ['HelseID-kompetent sikkerhetsarkitekt'],
+      sourceIds: ['helseid-security'],
+      mandatoryInGame: true,
+      implementationStatus: 'approved-for-implementation',
+      productionStatus: 'pending-professional-approval',
+    },
+    {
+      id: 'cn-fhir-conformance',
+      title: 'FHIR-versjon og faktisk kapasitet',
+      stageIds: ['connect'],
+      exactClaim:
+        'Når FHIR er valgt, skal laget registrere den nøyaktige FHIR-versjonen, implementasjonsguiden og profilversjonene som den valgte tjenesten krever. Klienten skal kontrollere endepunktets CapabilityStatement og må ikke anta støtte for ressurser eller operasjoner som ikke er oppført. Testdata skal valideres mot de navngitte profilene før porten godkjennes.',
+      serviceScope: 'FHIR-baserte tjenester og endepunkter.',
+      appliesWhen: 'Den navngitte tjenesten bruker FHIR.',
+      exceptions: [
+        'FHIR R4 er ikke en generell Helsenorge-regel; valgt tjeneste avgjør versjon og profiler.',
+      ],
+      expectedEvidence: [
+        'CapabilityStatement fra valgt endepunkt',
+        'FHIR-, implementasjonsguide- og profilversjoner',
+        'Valideringsrapport med faktiske feilutfall',
+      ],
+      requiredApproverRoles: ['FHIR-arkitekt', 'Tjenestens integrasjonsansvarlige'],
+      sourceIds: ['fhir-r4'],
+      mandatoryInGame: true,
+      implementationStatus: 'approved-for-implementation',
+      productionStatus: 'pending-professional-approval',
+    },
+    {
+      id: 'cn-smart-launch',
+      title: 'SMART App Launch',
+      stageIds: ['connect'],
+      exactClaim:
+        'SMART-reglene gjelder bare når den valgte tjenesten uttrykkelig støtter SMART App Launch. Klienten skal hente .well-known/smart-configuration, bruke Authorization Code Flow med PKCE S256, ikke legge en klienthemmelighet i nettleserkode, be om minst mulig tilgang og kontrollere hvilke scopes som faktisk ble innvilget.',
+      serviceScope: 'SMART App Launch mot en FHIR-tjeneste.',
+      appliesWhen: 'Valgt tjeneste uttrykkelig annonserer støtte for SMART App Launch.',
+      exceptions: [
+        'SMART er ikke en erstatning for HelseID; kombinasjonen må være dokumentert av tjenesten.',
+      ],
+      expectedEvidence: [
+        'SMART discovery-respons',
+        'Registrert klienttype og PKCE-test',
+        'Sammenligning av forespurte og innvilgede scopes',
+      ],
+      requiredApproverRoles: ['OAuth- eller SMART-arkitekt', 'Tjenesteeier'],
+      sourceIds: ['smart-app-launch-2-2'],
+      mandatoryInGame: true,
+      implementationStatus: 'approved-for-implementation',
+      productionStatus: 'pending-professional-approval',
+    },
+    {
+      id: 'db-privacy-default',
+      title: 'Personvern som standard',
+      stageIds: ['design-build'],
+      exactClaim:
+        'Løsningen skal som standard bare behandle personopplysninger som er nødvendige for det dokumenterte formålet. Dette gjelder hvilke opplysninger som samles inn, behandlingens omfang, lagringstid og hvem opplysningene gjøres tilgjengelige for.',
+      serviceScope: 'Design av behandling og standardinnstillinger.',
+      appliesWhen: 'Løsningen behandler personopplysninger.',
+      exceptions: [
+        'Rent syntetiske prototyper kan markeres ikke relevant, men er ikke produksjonsevidens.',
+      ],
+      expectedEvidence: [
+        'Felt-for-felt-begrunnelse',
+        'Tilgangsmatrise',
+        'Lagrings- og sletteregler',
+      ],
+      requiredApproverRoles: ['Personvernombud', 'Produkteier'],
+      sourceIds: ['gdpr-norway'],
+      mandatoryInGame: true,
+      implementationStatus: 'approved-for-implementation',
+      productionStatus: 'pending-professional-approval',
+    },
+    {
+      id: 'db-access-audit',
+      title: 'Tilgang og sporbarhet',
+      stageIds: ['design-build'],
+      exactClaim:
+        'Tilgang til helse- og personopplysninger skal avgrenses etter tjenstlig behov. Løsningen skal kunne dokumentere hvem som har hatt tilgang, og hvem som har registrert, rettet, endret eller slettet opplysninger.',
+      serviceScope: 'Tilgangsstyring og sikkerhetslogging.',
+      appliesWhen: 'Løsningen behandler helse- eller personopplysninger.',
+      exceptions: [
+        'Syntetisk læringsevidens erstatter ikke testing av produksjonens tilgangsstyring og logger.',
+      ],
+      expectedEvidence: [
+        'Tilgangsmatrise',
+        'Autorisasjonstester',
+        'Kontrollerte loggutdrag uten reelle personopplysninger',
+      ],
+      requiredApproverRoles: ['Sikkerhetsansvarlig', 'Dataansvarlig'],
+      sourceIds: ['normen-7'],
+      mandatoryInGame: true,
+      implementationStatus: 'approved-for-implementation',
+      productionStatus: 'pending-professional-approval',
+    },
+    {
+      id: 'db-encryption-integrity',
+      title: 'Kryptering og dataintegritet',
+      stageIds: ['design-build'],
+      exactClaim:
+        'Kommunikasjon av helse- og personopplysninger utenfor virksomhetens kontroll skal krypteres. Løsningen skal beskytte opplysningene mot utilsiktet eller uautorisert endring og sikre at opplysninger knyttes til riktig person og er korrekte og om nødvendig oppdaterte.',
+      serviceScope: 'Kommunikasjonssikkerhet og dataintegritet.',
+      appliesWhen: 'Helse- eller personopplysninger kommuniseres eller lagres.',
+      exceptions: [
+        'Konkret tiltak og kryptografisk profil må følge risiko og gjeldende tjenestekrav.',
+      ],
+      expectedEvidence: [
+        'Trusselmodell',
+        'Transport- og integritetstester',
+        'Feilscenario for feil person, endring og utdatert informasjon',
+      ],
+      requiredApproverRoles: ['Sikkerhetsarkitekt', 'Fagansvarlig'],
+      sourceIds: ['normen-7'],
+      mandatoryInGame: true,
+      implementationStatus: 'approved-for-implementation',
+      productionStatus: 'pending-professional-approval',
+    },
+  ],
+}
+export function getProductionRule(ruleId: string) {
+  return productionRuleRegistry.rules.find((rule) => rule.id === ruleId)
+}

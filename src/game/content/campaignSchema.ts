@@ -35,6 +35,7 @@ export const campaignStageSchema = z.object({
   ownerRole: z.string().min(2),
   entryCriteria: z.array(z.string().min(8)).min(1),
   exitEvidence: z.array(z.string().min(8)).min(1),
+  requiredRuleIds: z.array(z.string().regex(/^[a-z0-9-]+$/)),
   gate: gateSchema,
   nextStageId: journeyStageIdSchema.nullable(),
   sourceIds: z.array(z.string().min(3)).min(1),

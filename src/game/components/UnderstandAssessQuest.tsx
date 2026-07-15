@@ -12,6 +12,8 @@ interface UnderstandAssessQuestProps {
   state: AssessmentState
   dispatch: Dispatch<AssessmentEvent>
   onOpenCampaign: () => void
+  onBeginClarification: () => void
+  renderDialogue?: boolean
 }
 function actorLabel(actorId: AssessmentActorId | null) {
   return understandAssess.actors.find((actor) => actor.id === actorId)?.label
@@ -21,6 +23,8 @@ export function UnderstandAssessQuest({
   state,
   dispatch,
   onOpenCampaign,
+  onBeginClarification,
+  renderDialogue = true,
 }: UnderstandAssessQuestProps) {
   const submitMapping = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -30,6 +34,7 @@ export function UnderstandAssessQuest({
   if (state.stage === 'locked') return null
 
   if (state.stage === 'dialogue') {
+    if (!renderDialogue) return null
     const isLast = state.dialogueIndex === understandAssess.npc.dialogue.length - 1
     return (
       <section className="dialogue-panel" aria-labelledby="assessment-dialogue-speaker">
@@ -185,9 +190,18 @@ export function UnderstandAssessQuest({
         <p>
           <strong>Læringspoeng:</strong> Forventet verdi blir et bedre beslutningsgrunnlag når berørte perspektiver og åpne spørsmål er synlige samtidig.
         </p>
-        <button className="button button--primary" type="button" onClick={onOpenCampaign}>
-          Se evidens og neste steg
-        </button>
+        <div className="completion-card__actions">
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={onBeginClarification}
+          >
+            Fortsett til Ansvarslageret
+          </button>
+          <button className="button button--secondary" type="button" onClick={onOpenCampaign}>
+            Se evidens og neste steg
+          </button>
+        </div>
       </div>
     </section>
   )
