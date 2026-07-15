@@ -440,6 +440,47 @@ a {
   margin-top: 0.2rem;
 }
 
+.save-notice {
+  position: fixed;
+  z-index: 35;
+  top: 4.6rem;
+  left: 50%;
+  display: flex;
+  width: min(42rem, calc(100% - 2rem));
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--nhn-yellow);
+  border-radius: 0.55rem;
+  color: var(--ink);
+  background: var(--nhn-green-1);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.35);
+  transform: translateX(-50%);
+}
+
+.save-settings {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  background: rgba(0, 41, 32, 0.72);
+}
+
+.save-settings span,
+.save-settings small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.save-settings .text-button {
+  justify-self: start;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+}
+
 .performance-diagnostics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -15,6 +15,7 @@
     "test:content": "vitest run src/game/content/firstCampaign.test.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:gate-c": "npm run build && playwright test --config playwright.gate-c.config.ts",
     "check": "npm run lint && npm run test && npm run build"
   },
   "dependencies": {

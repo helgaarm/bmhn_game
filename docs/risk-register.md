@@ -43,3 +43,21 @@
 - Signal: build, WebGL, WASM physics, or automated browser tests fail on a supported target.
 - Control: locked dependency graph, CI, error boundary, accessible fallback, and explicit browser verification.
 - Owner: engineering.
+
+### Local save becomes incompatible or contains unintended text - medium impact, medium likelihood
+
+- Signal: a content/schema bump destroys progress, an older client overwrites a newer save, or a player enters non-synthetic information.
+- Control: independent schema/content versions, full domain validation, preserve-unknown behaviour, explicit reset, migration fixtures before version expansion, local-only storage and repeated synthetic-data messaging.
+- Owner: product, privacy and engineering.
+
+### Measurement capture is mistaken for Gate C approval - high impact, medium likelihood
+
+- Signal: a local/headless FPS result is presented as an approved performance baseline.
+- Control: draft profile, mandatory hardware/browser/threshold/owner fields, evaluator refusal, `measurement-only` report label and separate release approval.
+- Owner: product and technical lead.
+
+### Multiplayer begins before authority and recovery are designed - high impact, high likelihood
+
+- Signal: networking dependencies or client-authored shared completion appear before stable campaign ids, migrations and a server trust model.
+- Control: explicit readiness checklist, no multiplayer dependency, server-authoritative requirement and smallest-slice exclusions.
+- Owner: product, security and technical lead.

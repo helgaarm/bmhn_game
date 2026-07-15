@@ -8,6 +8,10 @@
 - Added a playable Understand and assess quest with source-bounded Nor dialogue, synthetic actor mapping, expected-value and uncertainty evidence, failed choices, and an explicit gate.
 - Added a procedural Speilsalen state to the existing 3D world without external assets.
 - Connected successful assessment to three evidence records, a second journal decision, and activation of Clarify and order.
+- Added versioned, debounced local save/resume for both quests, campaign evidence and unfinished Casebuilder input, with validation, recovery notices, unknown-version preservation and explicit reset.
+- Added a machine-readable external-asset manifest gate for item-level licence, provenance, redistribution, digest, review and runtime-path validation; no external asset was added.
+- Added a draft Gate C reference profile, pure validator/evaluator and production-build measurement harness that refuses formal evaluation until hardware, browser, thresholds and approval are agreed.
+- Added explicit multiplayer readiness and stop criteria; no networking dependency or multiplayer runtime was introduced.
 - Added an accessible campaign dashboard with progress, stage criteria, gates, and a decision journal.
 - Added remapping-ready named input actions.
 - Added a tested binary asset-loader contract with progress, cancellation, fallback, and structured diagnostics; no external asset was introduced.

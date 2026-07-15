@@ -23,6 +23,12 @@ import {
   initialAssessmentState,
 } from './state/assessmentMachine'
 import { matchesControlKey } from './input/controlMap'
+import {
+  clearGameSave,
+  loadGameSave,
+  writeGameSave,
+  type GameSaveLoadResult,
+} from './persistence/gameSave'
 
 const campaignReducer = createCampaignReducer(firstCampaign)
 
@@ -35,6 +41,35 @@ function readMemoryEstimateMb() {
     performance as Performance & { memory?: BrowserPerformanceMemory }
   ).memory
   return memory ? Math.round(memory.usedJSHeapSize / 1024 / 1024) : null
+}
+
+function initialSaveMessage(result: GameSaveLoadResult) {
+  switch (result.status) {
+    case 'restored':
+      return 'Fremdrift er gjenopprettet fra denne nettleseren.'
+    case 'recovered':
+      return 'Ugyldig lokal fremdrift ble forkastet. En ny, trygg lagring opprettes.'
+    case 'incompatible':
+      return 'En lagring fra en annen versjon er bevart og blir ikke overskrevet.'
+    case 'unavailable':
+      return 'Lokal lagring er ikke tilgjengelig i denne nettleseren.'
+    case 'empty':
+      return 'Fremdrift lagres bare lokalt i denne nettleseren.'
+  }
+}
+
+function initialSaveNotice(result: GameSaveLoadResult) {
+  switch (result.status) {
+    case 'recovered':
+      return 'Lokal fremdrift kunne ikke valideres og ble forkastet. Spillet startet trygt på nytt.'
+    case 'incompatible':
+      return 'Lokal fremdrift er fra en annen versjon. Den er bevart og blir ikke overskrevet før du nullstiller den.'
+    case 'unavailable':
+      return 'Nettleseren tillater ikke lokal lagring. Spillet fungerer, men kan ikke gjenoppta fremdrift.'
+    case 'empty':
+    case 'restored':
+      return null
+  }
 }
 
 function JourneyMap({ stages }: { stages: CampaignStageState[] }) {
@@ -93,20 +128,28 @@ function ThreeDFallback() {
 }
 
 export default function GamePage() {
-  const [quest, dispatch] = useReducer(questReducer, initialQuestState)
+  const [loadedSave] = useState(() => loadGameSave(window.localStorage))
+  const restoredSave = loadedSave.status === 'restored' ? loadedSave.save : null
+  const [quest, dispatch] = useReducer(
+    questReducer,
+    restoredSave?.quest ?? initialQuestState,
+  )
   const [assessment, dispatchAssessment] = useReducer(
     assessmentReducer,
-    initialAssessmentState,
+    restoredSave?.assessment ?? initialAssessmentState,
   )
   const [campaign, dispatchCampaign] = useReducer(
     campaignReducer,
-    firstCampaign,
-    createCampaignState,
+    restoredSave?.campaign ?? createCampaignState(firstCampaign),
   )
   const [nearNpc, setNearNpc] = useState(false)
   const [accessiblePath, setAccessiblePath] = useState(false)
-  const [needDescription, setNeedDescription] = useState('')
-  const [audienceId, setAudienceId] = useState<AudienceId | null>(null)
+  const [needDescription, setNeedDescription] = useState(
+    restoredSave?.draft.needDescription ?? '',
+  )
+  const [audienceId, setAudienceId] = useState<AudienceId | null>(
+    restoredSave?.draft.audienceId ?? null,
+  )
   const [reducedMotion, setReducedMotion] = useState(false)
   const [highContrast, setHighContrast] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -116,6 +159,15 @@ export default function GamePage() {
   const [sceneFailed, setSceneFailed] = useState(false)
   const [firstFrameMs, setFirstFrameMs] = useState<number | null>(null)
   const [fps, setFps] = useState<number | null>(null)
+  const [saveEnabled, setSaveEnabled] = useState(
+    loadedSave.status !== 'incompatible' && loadedSave.status !== 'unavailable',
+  )
+  const [saveMessage, setSaveMessage] = useState(() =>
+    initialSaveMessage(loadedSave),
+  )
+  const [saveNotice, setSaveNotice] = useState<string | null>(() =>
+    initialSaveNotice(loadedSave),
+  )
   const sceneStartedAt = useRef(performance.now())
 
   useEffect(() => {
@@ -196,6 +248,34 @@ export default function GamePage() {
     })
   }, [assessment])
 
+  useEffect(() => {
+    if (!saveEnabled) return
+    setSaveMessage('Venter på å lagre lokal fremdrift …')
+    const timer = window.setTimeout(() => {
+      const result = writeGameSave(window.localStorage, {
+        quest,
+        assessment,
+        campaign,
+        draft: { needDescription, audienceId },
+      })
+      if (result.status === 'saved') {
+        const time = new Date(result.savedAt).toLocaleTimeString('nb-NO', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+        setSaveMessage(`Lagret lokalt kl. ${time}.`)
+      } else {
+        setSaveEnabled(false)
+        setSaveNotice(
+          'Lokal lagring feilet. Spillet fortsetter uten save/resume.',
+        )
+        setSaveMessage('Lokal lagring feilet. Spillet fortsetter uten save/resume.')
+      }
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [assessment, audienceId, campaign, needDescription, quest, saveEnabled])
+
   const startDialogue = () => dispatch({ type: 'START_DIALOGUE' })
 
   const handleFirstFrame = () => {
@@ -232,6 +312,17 @@ export default function GamePage() {
     setNeedDescription('')
     setAudienceId(null)
     setAccessiblePath(false)
+  }
+
+  const clearLocalProgress = () => {
+    if (!clearGameSave(window.localStorage)) {
+      setSaveMessage('Kunne ikke slette lokal fremdrift i denne nettleseren.')
+      return
+    }
+    setSaveEnabled(true)
+    setSaveNotice(null)
+    setSaveMessage('Lokal fremdrift er nullstilt.')
+    restart()
   }
 
   const assessmentActive = assessment.stage !== 'locked'
@@ -289,6 +380,15 @@ export default function GamePage() {
         </div>
       </header>
 
+      {saveNotice && (
+        <section className="save-notice" role="status" aria-label="Lokal fremdrift">
+          <span>{saveNotice}</span>
+          <button className="text-button" type="button" onClick={() => setSaveNotice(null)}>
+            Lukk
+          </button>
+        </section>
+      )}
+
       {settingsOpen && (
         <section className="settings-panel" id="game-settings" aria-label="Innstillinger">
           <label>
@@ -307,6 +407,16 @@ export default function GamePage() {
             />
             Høy kontrast
           </label>
+          <div className="save-settings" role="status">
+            <strong>Lokal fremdrift</strong>
+            <span>{saveMessage}</span>
+            <small>Kun syntetisk spillstate. Ingenting sendes fra nettleseren.</small>
+            {loadedSave.status !== 'unavailable' && (
+              <button className="text-button" type="button" onClick={clearLocalProgress}>
+                Nullstill lokal fremdrift
+              </button>
+            )}
+          </div>
           <button
             className="text-button settings-panel__diagnostics-toggle"
             type="button"

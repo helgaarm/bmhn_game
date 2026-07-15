@@ -150,6 +150,24 @@ test('completes Discover and Understand and assess', async ({ page }, testInfo) 
       name: 'Gå videre med åpne spørsmål synlig og gi noen ansvar for å undersøke dem',
     }),
   ).toBeVisible()
+  await campaignDialog.getByRole('button', { name: 'Lukk' }).click()
+
+  await page.getByRole('button', { name: 'Innstillinger' }).click()
+  await expect(page.getByText(/Lagret lokalt kl\./)).toBeVisible()
+  if (process.env.VISUAL_REVIEW === '1') {
+    await page.screenshot({
+      path: testInfo.outputPath('phase-2-local-save.png'),
+      fullPage: false,
+    })
+  }
+  await page.getByRole('button', { name: 'Innstillinger' }).click()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Speilsalen', exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Speilsalens port er åpen' }),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Kampanje', exact: true }).click()
+  await expect(campaignDialog.getByText('2 av 9 steg fullført')).toBeVisible()
 })
 
 test('unknown routes have a recovery path', async ({ page }) => {
@@ -158,6 +176,27 @@ test('unknown routes have a recovery path', async ({ page }) => {
     page.getByRole('heading', { name: 'Denne portalen finnes ikke.' }),
   ).toBeVisible()
   await expect(page.getByRole('link', { name: 'Tilbake til inngangen' })).toBeVisible()
+})
+
+test('recovers safely from a corrupt local save', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('bmhn.game.save', '{not-json')
+  })
+  await page.goto('/game')
+
+  await expect(
+    page.getByText(
+      'Lokal fremdrift kunne ikke valideres og ble forkastet. Spillet startet trygt på nytt.',
+    ),
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Finn den lysende veiviseren' })).toBeVisible()
+  await expect.poll(async () =>
+    page.evaluate(() => {
+      const raw = window.localStorage.getItem('bmhn.game.save')
+      if (!raw) return null
+      return JSON.parse(raw).schemaVersion
+    }),
+  ).toBe(1)
 })
 
 test('landing and game entry have no automatically detectable accessibility violations', async ({

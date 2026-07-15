@@ -4,7 +4,7 @@ An original browser-based 3D fantasy learning experience built around the nine-s
 
 Phase 1 is a single-player technical vertical slice. It provides a lazy-loaded game route, an original low-poly scene, third-person movement, one source-bounded guide, Casebuilder input, an explicit dependency gate, a decision consequence, and a complete accessible 2D path. Multiplayer is intentionally deferred.
 
-Phase 2 has started with a validated nine-stage campaign spine, campaign dashboard, decision journal, controlled scene readiness, remapping-ready input actions, a cancellable/fallback asset-loader contract, and opt-in local diagnostics. Discover and Understand and assess are playable; stages 3–9 remain deliberately visible but unavailable.
+Phase 2 has started with a validated nine-stage campaign spine, campaign dashboard, decision journal, versioned local save/resume, controlled scene readiness, remapping-ready input actions, a licensed-asset intake gate, a cancellable/fallback asset-loader contract, and opt-in local diagnostics. Discover and Understand and assess are playable; stages 3–9 remain deliberately visible but unavailable.
 
 ## Run locally
 
@@ -25,6 +25,7 @@ npm run test:content
 npm test
 npm run build
 npm run test:e2e
+npm run test:gate-c
 ```
 
 `npm run check` runs lint, unit tests, and the production build. Playwright requires a Chromium installation (`npx playwright install chromium`).
@@ -38,7 +39,7 @@ npm run test:e2e
 - The full learning flow can be completed without precise 3D navigation.
 
 See [Phase 1 decisions](docs/architecture/phase-1-decisions.md) and the [vertical-slice brief](docs/vertical-slice.md).
-Phase 2 scope and evidence are tracked in the [Phase 2 foundation report](docs/phase-2-foundation.md) and [Phase 2 decisions](docs/architecture/phase-2-decisions.md).
+Phase 2 scope and evidence are tracked in the [Phase 2 foundation report](docs/phase-2-foundation.md), [Phase 2 decisions](docs/architecture/phase-2-decisions.md), [save/resume contract](docs/save-resume.md), [Gate C protocol](docs/performance-gate-c.md), and [multiplayer readiness gate](docs/multiplayer-readiness.md).
 
 ## Branding
 

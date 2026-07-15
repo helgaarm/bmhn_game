@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "status": "draft",
+  "id": "reference-profile-pending",
+  "hardware": {
+    "cpu": "TBD",
+    "gpu": "TBD",
+    "memoryGb": 0,
+    "powerMode": "TBD"
+  },
+  "operatingSystem": {
+    "name": "TBD",
+    "version": "TBD"
+  },
+  "browser": {
+    "name": "Chromium",
+    "version": "TBD",
+    "channel": "stable"
+  },
+  "viewport": {
+    "width": 1280,
+    "height": 720,
+    "deviceScaleFactor": 1
+  },
+  "network": {
+    "profile": "local-production-build",
+    "latencyMs": 0,
+    "downloadMbps": 0
+  },
+  "protocol": {
+    "warmupRuns": 1,
+    "measuredRuns": 5,
+    "fpsSampleSeconds": 5
+  },
+  "thresholds": {
+    "firstFrameP95MsMax": null,
+    "fpsP50Min": null,
+    "fpsP05Min": null,
+    "heapMbMax": null
+  },
+  "approval": {
+    "approvedBy": null,
+    "approvedAt": null
+  }
+}

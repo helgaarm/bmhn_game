@@ -19,4 +19,6 @@ The [Norsk helsenett Brandpad](https://brandpad.io/norsk-helsenett/) is used as 
 
 Every future item requires an item-level source URL, creator, exact licence/version, download date, modification record, attribution text, reviewer, and approved runtime path before commit. Collection-level assumptions are not sufficient. Unclear, non-commercial, or incompatible terms are rejected.
 
+The machine-readable release record is `assets/manifest.json` (schema version 1). An approved record additionally requires explicit redistribution permission, a SHA-256 digest, HTTPS item/licence URLs, unique id and path, review date, and a runtime path below `/game-assets/`. `src/game/assets/assetManifest.test.ts` fails CI when these controls are missing. The current item array is empty.
+
 Phase 2 adds a tested loader contract for progress, cancellation, fallback, and diagnostics. It does not add a runtime asset and therefore does not change the item table above.
